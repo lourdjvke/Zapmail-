@@ -150,10 +150,10 @@ export interface EmailTemplate {
 
 export interface EmailJob {
   id: string;
-  status: 'pending' | 'processing' | 'completed' | 'failed';
+  status: 'pending' | 'processing' | 'completed' | 'failed' | 'done';
   total: number;
   sent: number;
   failed: number;
   subject: string;
-  created: string;
+  lastUpdated: number;
 }

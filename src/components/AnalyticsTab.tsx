@@ -42,7 +42,7 @@ function FilterDropdown({ label, options, badge, onSelect }: { label: string, op
 }
 
 export function AnalyticsTab() {
-  const { data: jobs } = useFirebaseData<EmailJob[]>('jobs', []);
+  const { data: jobs } = useFirebaseData<EmailJob[]>('outgoing_emails', []);
   const [period, setPeriod] = useState("This Year");
   const [filter, setFilter] = useState("All");
 
@@ -51,17 +51,15 @@ export function AnalyticsTab() {
     let filteredJobs = jobs;
     
     if (period === "Last 7 days") {
-      const weekAgo = new Date();
-      weekAgo.setDate(weekAgo.getDate() - 7);
-      filteredJobs = jobs.filter(j => new Date(j.created) >= weekAgo);
+      const weekAgo = Date.now() - 7 * 24 * 60 * 60 * 1000;
+      filteredJobs = jobs.filter(j => (j.lastUpdated || 0) >= weekAgo);
     } else if (period === "Last 30 days") {
-      const monthAgo = new Date();
-      monthAgo.setDate(monthAgo.getDate() - 30);
-      filteredJobs = jobs.filter(j => new Date(j.created) >= monthAgo);
+      const monthAgo = Date.now() - 30 * 24 * 60 * 60 * 1000;
+      filteredJobs = jobs.filter(j => (j.lastUpdated || 0) >= monthAgo);
     }
 
     return months.map((m, i) => {
-      const monthJobs = filteredJobs.filter(j => new Date(j.created).getMonth() === i);
+      const monthJobs = filteredJobs.filter(j => new Date(j.lastUpdated || 0).getMonth() === i);
       const success = monthJobs.reduce((acc, j) => acc + (j.sent || 0), 0);
       const failed = monthJobs.reduce((acc, j) => acc + (j.failed || 0), 0);
       return { name: m, success, failed };
@@ -77,13 +75,13 @@ export function AnalyticsTab() {
       { label: "Success Rate", value: `${successRate}%`, trend: "2%", icon: "💬" },
       { label: "Total Sent", value: totalSent.toLocaleString(), trend: "2%", icon: "📩" },
       { label: "Total Failed", value: totalFailed.toLocaleString(), trend: "2%", icon: "❤️" },
-      { label: "Active Jobs", value: jobs.filter(j => j.status === 'pending').length.toString(), trend: "2%", icon: "⭐" },
+      { label: "Active Jobs", value: jobs.filter(j => j.status !== 'done').length.toString(), trend: "2%", icon: "⭐" },
     ];
   }, [jobs]);
 
   const filteredJobs = useMemo(() => {
-    if (filter === "Success") return jobs.filter(j => j.status === 'completed');
-    if (filter === "Ongoing") return jobs.filter(j => j.status === 'pending');
+    if (filter === "Success") return jobs.filter(j => j.status === 'done');
+    if (filter === "Ongoing") return jobs.filter(j => j.status !== 'done');
     return jobs;
   }, [jobs, filter]);
   return (
@@ -189,15 +187,15 @@ export function AnalyticsTab() {
                   <td colSpan={6} className="px-4 py-8 text-center text-gray-500">No email jobs found.</td>
                 </tr>
               ) : (
-                jobs.sort((a, b) => new Date(b.created).getTime() - new Date(a.created).getTime()).map((job) => (
+                jobs.sort((a, b) => (b.lastUpdated || 0) - (a.lastUpdated || 0)).map((job) => (
                   <tr key={job.id} className="hover:bg-gray-50/50 group transition-colors">
                     <td className="px-4 py-3">
-                      <span className="font-medium text-gray-900">{job.subject}</span>
+                      <span className="font-medium text-gray-900">{job.subject || 'No Subject'}</span>
                     </td>
                     <td className="px-4 py-3">
                       <span className={`px-2.5 py-1 rounded-full text-xs font-medium border ${
-                        job.status === "pending" ? "border-blue-200 text-blue-600 bg-blue-50" :
-                        job.status === "completed" ? "border-emerald-200 text-emerald-600 bg-emerald-50" :
+                        job.status === "pending" || job.status === "processing" ? "border-blue-200 text-blue-600 bg-blue-50" :
+                        job.status === "done" || job.status === "completed" ? "border-emerald-200 text-emerald-600 bg-emerald-50" :
                         "border-red-200 text-red-600 bg-red-50"
                       }`}>
                         {job.status}
@@ -208,16 +206,16 @@ export function AnalyticsTab() {
                         <div className="h-1.5 w-full bg-gray-100 rounded-full overflow-hidden">
                           <div 
                             className="h-full bg-emerald-500 rounded-full" 
-                            style={{ width: `${(job.sent / job.total) * 100}%` }}
+                            style={{ width: `${((job.sent || 0) / (job.total || 1)) * 100}%` }}
                           />
                         </div>
-                        <span className="text-xs text-gray-500 w-8">{Math.round((job.sent / job.total) * 100)}%</span>
+                        <span className="text-xs text-gray-500 w-8">{Math.round(((job.sent || 0) / (job.total || 1)) * 100)}%</span>
                       </div>
                     </td>
-                    <td className="px-4 py-3 text-gray-600">{job.sent} / {job.total}</td>
-                    <td className="px-4 py-3 text-gray-600">{job.failed}</td>
+                    <td className="px-4 py-3 text-gray-600">{job.sent || 0} / {job.total || 0}</td>
+                    <td className="px-4 py-3 text-gray-600">{job.failed || 0}</td>
                     <td className="px-4 py-3 text-gray-600">
-                      {new Date(job.created).toLocaleDateString()}
+                      {job.lastUpdated ? new Date(job.lastUpdated).toLocaleDateString() : 'N/A'}
                     </td>
                   </tr>
                 ))

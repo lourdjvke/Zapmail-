@@ -44,7 +44,7 @@ function FilterDropdown({ label, options, badge }: { label: string, options: str
 export function DashboardTab() {
   const { data: broadcastLists, addItem: addBroadcastList, removeItem: removeBroadcastList } = useFirebaseData<BroadcastList[]>('broadcast_lists', []);
   const { data: leads } = useFirebaseData<Lead[]>('leads', []);
-  const { data: jobs } = useFirebaseData<EmailJob[]>('jobs', []);
+  const { data: jobs } = useFirebaseData<EmailJob[]>('outgoing_emails', []);
   const { user } = useAuth();
   
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
@@ -67,7 +67,7 @@ export function DashboardTab() {
     const data = months.map(m => ({ name: m, value: 0 }));
     
     jobs.forEach(job => {
-      const date = new Date(job.created);
+      const date = new Date(job.lastUpdated || 0);
       const monthIndex = date.getMonth();
       data[monthIndex].value += (job.sent || 0);
     });

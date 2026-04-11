@@ -1,4 +1,4 @@
-import React, { useState, useRef, useEffect } from "react";
+import React, { useState, useRef, useEffect, useMemo } from "react";
 import { motion, AnimatePresence } from "motion/react";
 import { Upload, X, Send, Paperclip, Image as ImageIcon, Type, FileText, Users, ChevronDown, Eye, Layout, Edit3, Palette, Trash2, Link as LinkIcon, AlertTriangle, Check } from "lucide-react";
 import { useFirebaseData, useAuth, BroadcastList, EmailTemplate, EmailJob } from "../lib/store";
@@ -39,7 +39,7 @@ export function ComposeTab({ initialHtml, onHtmlUsed }: ComposeTabProps) {
   const { user } = useAuth();
   const [isSending, setIsSending] = useState(false);
   const [activeJobId, setActiveJobId] = useState<string | null>(null);
-  const { data: jobs, addItem: addJob } = useFirebaseData<EmailJob[]>('jobs', []);
+  const { data: outgoingJobs } = useFirebaseData<any[]>('outgoing_emails', []);
 
   const handleSendEmail = async () => {
     if (!user) return;
@@ -51,37 +51,16 @@ export function ComposeTab({ initialHtml, onHtmlUsed }: ComposeTabProps) {
     setIsSending(true);
     const SCRIPT_URL = "https://script.google.com/macros/s/AKfycbxyf_2Q-JEHEFmdpLvpTwTM63dQXaU8neWBu7-1jCQbTZpjm9RfsN7FrvF5HYUX59pCyA/exec";
     
-    const payload = {
-      action: "launchBatch",
+    const params = new URLSearchParams({
       userId: user.uid,
-      recipients: emails.join(","),
-      subject: subject,
-      body: composeType === "plain" ? content : htmlContent,
-      isHtml: composeType === "custom"
-    };
+      to: emails.join(","),
+      sub: subject,
+      msg: composeType === "plain" ? content : htmlContent,
+      isHtml: (composeType === "custom").toString()
+    });
 
     try {
-      // Create a job record in Firebase first
-      const jobId = Math.random().toString(36).substr(2, 9);
-      await addJob({
-        id: jobId,
-        status: 'pending',
-        total: emails.length,
-        sent: 0,
-        failed: 0,
-        subject: subject,
-        created: new Date().toISOString()
-      });
-      setActiveJobId(jobId);
-
-      // Trigger the Google Apps Script
-      await fetch(SCRIPT_URL, {
-        method: "POST",
-        mode: "no-cors",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(payload)
-      });
-
+      window.open(`${SCRIPT_URL}?${params.toString()}`, "ZapMailProcessor", "width=500,height=450");
       alert("Batch process initiated. Monitoring progress...");
     } catch (error) {
       console.error("Error launching batch:", error);
@@ -90,7 +69,16 @@ export function ComposeTab({ initialHtml, onHtmlUsed }: ComposeTabProps) {
     }
   };
 
-  const activeJob = jobs.find(j => j.id === activeJobId);
+  const activeJob = useMemo(() => {
+    if (!outgoingJobs || outgoingJobs.length === 0) return null;
+    return [...outgoingJobs].sort((a, b) => (b.lastUpdated || 0) - (a.lastUpdated || 0))[0];
+  }, [outgoingJobs]);
+
+  useEffect(() => {
+    if (activeJob && activeJob.status === 'done') {
+      setIsSending(false);
+    }
+  }, [activeJob]);
 
   useEffect(() => {
     if (initialHtml) {
