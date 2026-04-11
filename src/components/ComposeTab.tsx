@@ -452,7 +452,7 @@ export function ComposeTab({ initialHtml, onHtmlUsed }: ComposeTabProps) {
                     className="flex items-center gap-1.5 text-sm text-gray-600 hover:text-gray-900 border border-gray-200 px-3 py-1.5 rounded-lg transition-colors"
                   >
                     <Users className="w-4 h-4" /> 
-                    {broadcastList !== "None" ? broadcastList : "Select Broadcast List"} 
+                    {broadcastList !== "None" ? broadcastList : "Broadcast List"} 
                     <ChevronDown className="w-3 h-3" />
                   </button>
                   <AnimatePresence>

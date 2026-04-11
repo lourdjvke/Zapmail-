@@ -1,19 +1,20 @@
 import { useState, useEffect, ReactNode } from "react";
 import { motion, AnimatePresence } from "motion/react";
-import { Bell, Search, Menu, X, Globe, LayoutDashboard, Users, Megaphone, BarChart3, Edit, Layout, LogOut } from "lucide-react";
+import { Bell, Search, Menu, X, Globe, LayoutDashboard, Users, Megaphone, BarChart3, Edit, Layout, LogOut, Zap } from "lucide-react";
 import { DashboardTab } from "./components/DashboardTab";
 import { LeadsTab } from "./components/LeadsTab";
 import { CampaignTab } from "./components/CampaignTab";
 import { AnalyticsTab } from "./components/AnalyticsTab";
 import { ComposeTab } from "./components/ComposeTab";
 import { TemplatesTab } from "./components/TemplatesTab";
+import { PricingTab } from "./components/PricingTab";
 import { Loader } from "./components/Loader";
 import { AuthScreen } from "./components/AuthScreen";
 import { useAuth } from "./lib/store";
 import { auth, createUserWithEmailAndPassword, signInWithEmailAndPassword, updateProfile } from "./lib/firebase";
 import { GoogleAuthProvider, signInWithPopup, signOut } from "firebase/auth";
 
-type TabType = "Dashboard" | "Leads" | "Campaign" | "Analytics" | "Compose" | "Templates";
+type TabType = "Dashboard" | "Leads" | "Campaign" | "Analytics" | "Compose" | "Templates" | "Upgrade";
 
 export default function App() {
   const { user, loading: authLoading } = useAuth();
@@ -80,6 +81,7 @@ export default function App() {
     { id: "Analytics", icon: <BarChart3 className="w-4 h-4" /> },
     { id: "Templates", icon: <Layout className="w-4 h-4" /> },
     { id: "Compose", icon: <Edit className="w-4 h-4" /> },
+    { id: "Upgrade", icon: <Zap className="w-4 h-4 text-amber-400" /> },
   ];
 
   const handleUseTemplate = (html: string) => {
@@ -214,6 +216,7 @@ export default function App() {
                 {activeTab === "Campaign" && <CampaignTab />}
                 {activeTab === "Analytics" && <AnalyticsTab />}
                 {activeTab === "Templates" && <TemplatesTab onUseTemplate={handleUseTemplate} />}
+                {activeTab === "Upgrade" && <PricingTab />}
                 {activeTab === "Compose" && (
                   <ComposeTab 
                     initialHtml={composeInitialHtml} 

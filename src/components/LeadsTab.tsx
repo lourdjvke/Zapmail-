@@ -1,14 +1,8 @@
 import React, { useState, useRef, useMemo } from "react";
 import { motion, AnimatePresence } from "motion/react";
-import { Plus, Search, Filter, Eye, Edit2, MoreHorizontal, ChevronDown, X, Upload, ChevronLeft, ChevronRight } from "lucide-react";
+import { Plus, Search, Filter, Eye, Edit2, MoreHorizontal, ChevronDown, X, Upload, ChevronLeft, ChevronRight, Users } from "lucide-react";
 import { useFirebaseData, Lead } from "../lib/store";
 
-const leadsSummary = [
-  { label: "New", value: "672", color: "text-gray-900" },
-  { label: "Contacted", value: "1.837", color: "text-gray-900" },
-  { label: "Qualified", value: "257k", color: "text-gray-900" },
-  { label: "Working", value: "156k", color: "text-gray-900" },
-];
 
 function FilterDropdown({ label, options, onSelect }: { label: string, options: string[], onSelect: (opt: string) => void }) {
   const [isOpen, setIsOpen] = useState(false);
@@ -190,16 +184,14 @@ export function LeadsTab() {
         </button>
       </div>
 
-      {/* Summary Cards */}
-      <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-3 sm:p-4 flex overflow-x-auto gap-3 sm:gap-8 hide-scrollbar">
-        {leadsSummary.map((item, i) => (
-          <div key={i} className="flex-shrink-0 text-center px-3 sm:px-4 first:pl-1 sm:first:pl-2 last:pr-1 sm:last:pr-2 border-r last:border-0 border-gray-100">
-            <div className={`text-[11px] sm:text-sm font-medium mb-1 ${item.label === "Lost leads" ? "text-red-500" : item.label === "Customer" ? "text-emerald-600" : "text-gray-500"}`}>
-              {item.label}
-            </div>
-            <div className={`text-lg sm:text-xl font-bold ${item.color}`}>{item.value}</div>
-          </div>
-        ))}
+      <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-6 flex items-center gap-4">
+        <div className="w-12 h-12 rounded-xl bg-emerald-50 text-emerald-600 flex items-center justify-center">
+          <Users className="w-6 h-6" />
+        </div>
+        <div>
+          <div className="text-sm font-medium text-gray-500">Total Leads</div>
+          <div className="text-2xl font-bold text-gray-900">{leads.length.toLocaleString()}</div>
+        </div>
       </div>
 
       {/* Table Section */}

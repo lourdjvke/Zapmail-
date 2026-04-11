@@ -248,7 +248,7 @@ export function DashboardTab({ onNavigate }: { onNavigate: (tab: string) => void
             Hi, {user?.displayName?.split(' ')[0] || 'Anthony'} <span className="text-2xl">👋</span>
           </h1>
           <p className="text-emerald-100/80 max-w-md text-sm leading-relaxed">
-            Create a campaign to promote your business more widely and reach potential markets throughout the world!
+            Create a campaign to promote your business more widely and reach potential markets throughout your contacts!
           </p>
           <button onClick={() => onNavigate("Campaign")} className="relative overflow-hidden bg-white/10 hover:bg-white/20 border border-white/20 text-white px-6 py-2.5 rounded-full font-medium transition-colors flex items-center gap-2 group w-fit">
             Start Campaign
@@ -326,7 +326,7 @@ export function DashboardTab({ onNavigate }: { onNavigate: (tab: string) => void
           <div className="flex items-center justify-between mb-6">
             <div>
               <h3 className="text-gray-900 font-semibold text-lg">Emails sent</h3>
-              <div className="text-3xl font-bold mt-1">1.038</div>
+              <div className="text-3xl font-bold mt-1">{totalSent.toLocaleString()}</div>
             </div>
             <div className="flex items-center gap-2 text-sm">
               <span className="text-gray-500">Filter:</span>
