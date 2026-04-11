@@ -1,8 +1,9 @@
 import React, { useState, useRef, useMemo } from "react";
 import { motion, AnimatePresence } from "motion/react";
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, Cell } from "recharts";
-import { ChevronDown, Plus, MoreHorizontal, X, Upload, Users, Save, Search } from "lucide-react";
+import { ChevronDown, Plus, MoreHorizontal, X, Upload, Users, Save, Search, Edit3, RefreshCw } from "lucide-react";
 import { useFirebaseData, useAuth, BroadcastList, Lead, EmailJob } from "../lib/store";
+import { fetchEmailsFromRTDB } from "../services/rtdbService";
 
 function FilterDropdown({ label, options, badge }: { label: string, options: string[], badge?: number }) {
   const [isOpen, setIsOpen] = useState(false);
@@ -41,15 +42,16 @@ function FilterDropdown({ label, options, badge }: { label: string, options: str
   );
 }
 
-export function DashboardTab() {
-  const { data: broadcastLists, addItem: addBroadcastList, removeItem: removeBroadcastList } = useFirebaseData<BroadcastList[]>('broadcast_lists', []);
+export function DashboardTab({ onNavigate }: { onNavigate: (tab: string) => void }) {
+  const { data: broadcastLists, addItem: addBroadcastList, removeItem: removeBroadcastList, updateItem: updateBroadcastList } = useFirebaseData<BroadcastList[]>('broadcast_lists', []);
   const { data: leads } = useFirebaseData<Lead[]>('leads', []);
   const { data: jobs } = useFirebaseData<EmailJob[]>('outgoing_emails', []);
   const { user } = useAuth();
   
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
+  const [editingList, setEditingList] = useState<BroadcastList | null>(null);
   const [listName, setListName] = useState("");
-  const [addTab, setAddTab] = useState<"smart" | "manual" | "select">("smart");
+  const [addTab, setAddTab] = useState<"smart" | "manual" | "select" | "rtdb">("smart");
   
   const totalSent = useMemo(() => jobs.reduce((acc, job) => acc + (job.sent || 0), 0), [jobs]);
   const totalFailed = useMemo(() => jobs.reduce((acc, job) => acc + (job.failed || 0), 0), [jobs]);
@@ -87,6 +89,14 @@ export function DashboardTab() {
   // Select Contacts
   const [selectedLeadIds, setSelectedLeadIds] = useState<Set<string>>(new Set());
   const [leadSearch, setLeadSearch] = useState("");
+  const [rtdbUrl, setRtdbUrl] = useState("");
+  const [rtdbFolder, setRtdbFolder] = useState("");
+  const [rtdbSubfolders, setRtdbSubfolders] = useState<string[]>([]);
+  const [rtdbExplore, setRtdbExplore] = useState(false);
+  const [rtdbFieldName, setRtdbFieldName] = useState("email");
+  const [showSubfolderInput, setShowSubfolderInput] = useState(false);
+  const [isRtdbRunning, setIsRtdbRunning] = useState(false);
+  const [rtdbResult, setRtdbResult] = useState<{count: number, error?: string} | null>(null);
 
   const extractEmails = (text: string) => {
     const emailRegex = /[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}/g;
@@ -177,15 +187,45 @@ export function DashboardTab() {
       finalEmails = [...new Set([...finalEmails, ...selectedEmails])];
     }
 
-    if (!listName.trim() || finalEmails.length === 0) return;
-    const newList = {
-      name: listName,
-      emails: finalEmails,
-    };
-    await addBroadcastList(newList);
+    if (!listName.trim() || (finalEmails.length === 0 && addTab !== "rtdb")) return;
+    
+    if (editingList) {
+      await updateBroadcastList(editingList.id, {
+        name: listName,
+        emails: finalEmails,
+        rtdbConfig: addTab === "rtdb" ? {
+          url: rtdbUrl,
+          folder: rtdbFolder,
+          subfolders: rtdbSubfolders,
+          explore: rtdbExplore,
+          fieldName: rtdbFieldName
+        } : undefined
+      });
+      setEditingList(null);
+    } else {
+      const newList: BroadcastList = {
+        id: Date.now().toString(),
+        name: listName,
+        emails: finalEmails,
+        rtdbConfig: addTab === "rtdb" ? {
+          url: rtdbUrl,
+          folder: rtdbFolder,
+          subfolders: rtdbSubfolders,
+          explore: rtdbExplore,
+          fieldName: rtdbFieldName
+        } : undefined
+      };
+      await addBroadcastList(newList);
+    }
+    
     setListName("");
     setSmartEmails([]);
     setSelectedLeadIds(new Set());
+    setRtdbUrl("");
+    setRtdbFolder("");
+    setRtdbSubfolders([]);
+    setRtdbExplore(false);
+    setRtdbFieldName("email");
     setIsAddModalOpen(false);
   };
 
@@ -210,7 +250,7 @@ export function DashboardTab() {
           <p className="text-emerald-100/80 max-w-md text-sm leading-relaxed">
             Create a campaign to promote your business more widely and reach potential markets throughout the world!
           </p>
-          <button className="relative overflow-hidden bg-white/10 hover:bg-white/20 border border-white/20 text-white px-6 py-2.5 rounded-full font-medium transition-colors flex items-center gap-2 group w-fit">
+          <button onClick={() => onNavigate("Campaign")} className="relative overflow-hidden bg-white/10 hover:bg-white/20 border border-white/20 text-white px-6 py-2.5 rounded-full font-medium transition-colors flex items-center gap-2 group w-fit">
             Start Campaign
             <span className="group-hover:translate-x-1 transition-transform">→</span>
             <div className="absolute inset-0 animate-shimmer pointer-events-none" />
@@ -291,7 +331,6 @@ export function DashboardTab() {
             <div className="flex items-center gap-2 text-sm">
               <span className="text-gray-500">Filter:</span>
               <span className="bg-emerald-500 text-white px-3 py-1 rounded-full text-xs font-medium">Campaign 1</span>
-              <span className="bg-gray-100 text-gray-600 px-3 py-1 rounded-full text-xs font-medium">Inbox</span>
             </div>
           </div>
           <div className="h-48 w-full">
@@ -361,12 +400,47 @@ export function DashboardTab() {
                     </div>
                     <h4 className="font-semibold text-gray-900">{list.name}</h4>
                   </div>
-                  <button className="text-gray-400 hover:text-red-500 opacity-0 group-hover:opacity-100 transition-opacity" onClick={() => removeBroadcastList(list.id)}>
-                    <X className="w-4 h-4" />
-                  </button>
+                  <div className="flex items-center gap-2">
+                    <button className="text-gray-400 hover:text-emerald-500 opacity-0 group-hover:opacity-100 transition-opacity" onClick={() => {
+                      setEditingList(list);
+                      setListName(list.name);
+                      setSmartEmails(list.emails);
+                      if (list.rtdbConfig) {
+                        setRtdbUrl(list.rtdbConfig.url);
+                        setRtdbFolder(list.rtdbConfig.folder);
+                        setRtdbSubfolders(list.rtdbConfig.subfolders);
+                        setRtdbExplore(list.rtdbConfig.explore);
+                        setRtdbFieldName(list.rtdbConfig.fieldName);
+                        setAddTab("rtdb");
+                      }
+                      setIsAddModalOpen(true);
+                    }}>
+                      <Edit3 className="w-4 h-4" />
+                    </button>
+                    {list.rtdbConfig && (
+                      <button className="text-gray-400 hover:text-emerald-500 opacity-0 group-hover:opacity-100 transition-opacity" onClick={async () => {
+                        if (list.rtdbConfig) {
+                          const newEmails = await fetchEmailsFromRTDB(list.rtdbConfig);
+                          const updatedEmails = [...new Set([...list.emails, ...newEmails])];
+                          await updateBroadcastList(list.id, { emails: updatedEmails });
+                          alert(`Found ${newEmails.length - (list.emails.length - list.emails.filter(e => !newEmails.includes(e)).length)} new emails.`);
+                        }
+                      }}>
+                        <RefreshCw className="w-4 h-4" />
+                      </button>
+                    )}
+                    <button className="text-gray-400 hover:text-red-500 opacity-0 group-hover:opacity-100 transition-opacity" onClick={() => removeBroadcastList(list.id)}>
+                      <X className="w-4 h-4" />
+                    </button>
+                  </div>
                 </div>
                 <div className="text-sm text-gray-500">
                   {list.emails.length} recipient{list.emails.length !== 1 ? 's' : ''}
+                  {list.rtdbConfig && (
+                    <div className="text-xs text-emerald-600 mt-1 truncate" title={list.rtdbConfig.url}>
+                      Connected: {list.rtdbConfig.url}
+                    </div>
+                  )}
                 </div>
               </div>
             ))
@@ -412,24 +486,30 @@ export function DashboardTab() {
                 </div>
 
                 <div className="space-y-4">
-                  <div className="flex items-center gap-2 bg-gray-50 p-1 rounded-lg">
+                  <div className="flex items-center gap-2 bg-gray-50 p-1 rounded-lg overflow-x-auto flex-nowrap hide-scrollbar">
                     <button 
                       onClick={() => setAddTab("smart")}
-                      className={`flex-1 py-1.5 text-sm font-medium rounded-md transition-colors ${addTab === "smart" ? "bg-white text-gray-900 shadow-sm" : "text-gray-500 hover:text-gray-700"}`}
+                      className={`flex-1 py-1.5 px-3 text-sm font-medium rounded-md transition-colors whitespace-nowrap ${addTab === "smart" ? "bg-white text-gray-900 shadow-sm" : "text-gray-500 hover:text-gray-700"}`}
                     >
                       Smart Import
                     </button>
                     <button 
                       onClick={() => setAddTab("manual")}
-                      className={`flex-1 py-1.5 text-sm font-medium rounded-md transition-colors ${addTab === "manual" ? "bg-white text-gray-900 shadow-sm" : "text-gray-500 hover:text-gray-700"}`}
+                      className={`flex-1 py-1.5 px-3 text-sm font-medium rounded-md transition-colors whitespace-nowrap ${addTab === "manual" ? "bg-white text-gray-900 shadow-sm" : "text-gray-500 hover:text-gray-700"}`}
                     >
                       Manual Entry
                     </button>
                     <button 
                       onClick={() => setAddTab("select")}
-                      className={`flex-1 py-1.5 text-sm font-medium rounded-md transition-colors ${addTab === "select" ? "bg-white text-gray-900 shadow-sm" : "text-gray-500 hover:text-gray-700"}`}
+                      className={`flex-1 py-1.5 px-3 text-sm font-medium rounded-md transition-colors whitespace-nowrap ${addTab === "select" ? "bg-white text-gray-900 shadow-sm" : "text-gray-500 hover:text-gray-700"}`}
                     >
                       Select Contacts
+                    </button>
+                    <button 
+                      onClick={() => setAddTab("rtdb")}
+                      className={`flex-1 py-1.5 px-3 text-sm font-medium rounded-md transition-colors whitespace-nowrap ${addTab === "rtdb" ? "bg-white text-gray-900 shadow-sm" : "text-gray-500 hover:text-gray-700"}`}
+                    >
+                      Firebase RTDB
                     </button>
                   </div>
 
@@ -505,7 +585,7 @@ export function DashboardTab() {
                         Add to List
                       </button>
                     </div>
-                  ) : (
+                  ) : addTab === "select" ? (
                     <div className="space-y-4">
                       <div className="relative">
                         <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
@@ -521,24 +601,62 @@ export function DashboardTab() {
                         {filteredLeads.length === 0 ? (
                           <div className="p-8 text-center text-gray-500 text-sm">No leads found.</div>
                         ) : (
-                          <div className="divide-y divide-gray-100">
-                            {filteredLeads.map(lead => (
-                              <label key={lead.id} className="flex items-center gap-3 p-3 hover:bg-gray-50 cursor-pointer transition-colors">
-                                <input 
-                                  type="checkbox" 
-                                  checked={selectedLeadIds.has(lead.id)}
-                                  onChange={() => toggleLeadSelection(lead.id)}
-                                  className="w-4 h-4 text-emerald-600 rounded border-gray-300 focus:ring-emerald-500"
-                                />
-                                <div>
-                                  <div className="text-sm font-medium text-gray-900">{lead.name}</div>
-                                  <div className="text-xs text-gray-500">{lead.email}</div>
-                                </div>
-                              </label>
-                            ))}
-                          </div>
+                          filteredLeads.map(lead => (
+                            <button key={lead.id} onClick={() => toggleLeadSelection(lead.id)} className={`w-full flex items-center gap-3 p-2 rounded-lg text-sm ${selectedLeadIds.has(lead.id) ? 'bg-emerald-50 text-emerald-700' : 'hover:bg-gray-50'}`}>
+                              <input type="checkbox" checked={selectedLeadIds.has(lead.id)} readOnly />
+                              {lead.email}
+                            </button>
+                          ))
                         )}
                       </div>
+                    </div>
+                  ) : (
+                    <div className="space-y-4">
+                      <input type="text" value={rtdbUrl} onChange={e => setRtdbUrl(e.target.value)} placeholder="RTDB URL" className="w-full bg-gray-50 border border-gray-200 rounded-lg p-2 text-sm" />
+                      <input type="text" value={rtdbFolder} onChange={e => setRtdbFolder(e.target.value)} placeholder="Folder Name" className="w-full bg-gray-50 border border-gray-200 rounded-lg p-2 text-sm" />
+                      
+                      <button onClick={() => setShowSubfolderInput(!showSubfolderInput)} className="text-sm text-emerald-600 font-medium">+ Add Subfolder</button>
+                      
+                      {showSubfolderInput && (
+                        <input type="text" placeholder="Subfolder Name" className="w-full bg-gray-50 border border-gray-200 rounded-lg p-2 text-sm" onKeyDown={e => {
+                          if (e.key === 'Enter') {
+                            setRtdbSubfolders([...rtdbSubfolders, e.currentTarget.value]);
+                            e.currentTarget.value = '';
+                          }
+                        }} />
+                      )}
+                      
+                      <div className="flex items-center gap-2">
+                        <input type="checkbox" checked={rtdbExplore} onChange={e => setRtdbExplore(e.target.checked)} />
+                        <span className="text-sm text-gray-600">Enable Exploration</span>
+                      </div>
+                      <input type="text" value={rtdbFieldName} onChange={e => setRtdbFieldName(e.target.value)} placeholder="Field Name (e.g., email)" className="w-full bg-gray-50 border border-gray-200 rounded-lg p-2 text-sm" />
+                      
+                      <button 
+                        disabled={isRtdbRunning || !rtdbUrl || !rtdbFolder}
+                        onClick={async () => {
+                          setIsRtdbRunning(true);
+                          setRtdbResult(null);
+                          try {
+                            const emails = await fetchEmailsFromRTDB({ url: rtdbUrl, folder: rtdbFolder, subfolders: rtdbSubfolders, explore: rtdbExplore, fieldName: rtdbFieldName });
+                            setSmartEmails(prev => [...new Set([...prev, ...emails])]);
+                            setRtdbResult({ count: emails.length });
+                          } catch (error: any) {
+                            setRtdbResult({ count: 0, error: error.message });
+                          } finally {
+                            setIsRtdbRunning(false);
+                          }
+                        }} 
+                        className="w-full bg-emerald-600 hover:bg-emerald-700 disabled:opacity-50 text-white p-2 rounded-lg font-medium transition-colors flex items-center justify-center gap-2"
+                      >
+                        {isRtdbRunning ? <><RefreshCw className="w-4 h-4 animate-spin" /> Extracting...</> : 'Run Extraction'}
+                      </button>
+
+                      {rtdbResult && (
+                        <div className={`text-sm p-3 rounded-lg ${rtdbResult.error ? 'bg-red-50 text-red-600' : 'bg-emerald-50 text-emerald-600'}`}>
+                          {rtdbResult.error ? `Error: ${rtdbResult.error}` : `Successfully extracted ${rtdbResult.count} unique emails.`}
+                        </div>
+                      )}
                     </div>
                   )}
                 </div>

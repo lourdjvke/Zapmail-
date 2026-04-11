@@ -209,7 +209,7 @@ export default function App() {
                 exit={{ opacity: 0, y: -20 }}
                 transition={{ duration: 0.3 }}
               >
-                {activeTab === "Dashboard" && <DashboardTab />}
+                {activeTab === "Dashboard" && <DashboardTab onNavigate={handleTabChange} />}
                 {activeTab === "Leads" && <LeadsTab />}
                 {activeTab === "Campaign" && <CampaignTab />}
                 {activeTab === "Analytics" && <AnalyticsTab />}

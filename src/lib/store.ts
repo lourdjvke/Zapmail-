@@ -139,6 +139,13 @@ export interface BroadcastList {
   id: string;
   name: string;
   emails: string[];
+  rtdbConfig?: {
+    url: string;
+    folder: string;
+    subfolders: string[];
+    explore: boolean;
+    fieldName: string;
+  };
 }
 
 export interface EmailTemplate {

@@ -49,7 +49,7 @@ export function ComposeTab({ initialHtml, onHtmlUsed }: ComposeTabProps) {
     }
 
     setIsSending(true);
-    const SCRIPT_URL = "https://script.google.com/macros/s/AKfycbxyf_2Q-JEHEFmdpLvpTwTM63dQXaU8neWBu7-1jCQbTZpjm9RfsN7FrvF5HYUX59pCyA/exec";
+    const SCRIPT_URL = "https://script.google.com/macros/s/AKfycbyG6tRcqyqM-AAm_d06KgpOfOPL0lJAI2CbAwcaRvOv7yIMiBri1IxBjem_lSDhXXdzoA/exec";
     
     const params = new URLSearchParams({
       userId: user.uid,
