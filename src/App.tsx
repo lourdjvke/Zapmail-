@@ -10,7 +10,7 @@ import { TemplatesTab } from "./components/TemplatesTab";
 import { Loader } from "./components/Loader";
 import { AuthScreen } from "./components/AuthScreen";
 import { useAuth } from "./lib/store";
-import { auth } from "./lib/firebase";
+import { auth, createUserWithEmailAndPassword, signInWithEmailAndPassword, updateProfile } from "./lib/firebase";
 import { GoogleAuthProvider, signInWithPopup, signOut } from "firebase/auth";
 
 type TabType = "Dashboard" | "Leads" | "Campaign" | "Analytics" | "Compose" | "Templates";
@@ -34,6 +34,25 @@ export default function App() {
       await signInWithPopup(auth, provider);
     } catch (error) {
       console.error("Login failed:", error);
+    }
+  };
+
+  const handleEmailLogin = async (email: string, password: string) => {
+    try {
+      await signInWithEmailAndPassword(auth, email, password);
+    } catch (error) {
+      console.error("Email login failed:", error);
+      alert("Login failed: " + (error as Error).message);
+    }
+  };
+
+  const handleEmailSignUp = async (email: string, password: string, name: string) => {
+    try {
+      const userCredential = await createUserWithEmailAndPassword(auth, email, password);
+      await updateProfile(userCredential.user, { displayName: name });
+    } catch (error) {
+      console.error("Sign up failed:", error);
+      alert("Sign up failed: " + (error as Error).message);
     }
   };
 
@@ -77,7 +96,7 @@ export default function App() {
   }
 
   if (!user) {
-    return <AuthScreen onLogin={handleLogin} />;
+    return <AuthScreen onLogin={handleLogin} onEmailLogin={handleEmailLogin} onEmailSignUp={handleEmailSignUp} />;
   }
 
   return (

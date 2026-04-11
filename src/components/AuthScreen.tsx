@@ -1,13 +1,29 @@
+import React, { useState } from "react";
 import { motion } from "motion/react";
 
 interface AuthScreenProps {
   onLogin: () => void;
+  onEmailLogin: (email: string, password: string) => void;
+  onEmailSignUp: (email: string, password: string, name: string) => void;
 }
 
-export function AuthScreen({ onLogin }: AuthScreenProps) {
+export function AuthScreen({ onLogin, onEmailLogin, onEmailSignUp }: AuthScreenProps) {
+  const [isSignUp, setIsSignUp] = useState(false);
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
+  const [name, setName] = useState("");
+
+  const handleSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (isSignUp) {
+      onEmailSignUp(email, password, name);
+    } else {
+      onEmailLogin(email, password);
+    }
+  };
+
   return (
     <div className="min-h-screen bg-brand-dark flex flex-col items-center justify-center p-4 relative overflow-hidden">
-      {/* Background decorative elements */}
       <div className="absolute top-[-10%] left-[-10%] w-96 h-96 bg-emerald-500/10 rounded-full blur-3xl pointer-events-none" />
       <div className="absolute bottom-[-10%] right-[-10%] w-96 h-96 bg-emerald-500/10 rounded-full blur-3xl pointer-events-none" />
 
@@ -22,15 +38,63 @@ export function AuthScreen({ onLogin }: AuthScreenProps) {
         </div>
         
         <h1 className="text-2xl sm:text-4xl font-bold text-white mb-3 tracking-tight">
-          One more step...
+          {isSignUp ? "Create an account" : "Welcome back"}
         </h1>
         <p className="text-base sm:text-lg text-emerald-50/80 mb-8 sm:mb-10">
-          Sign in to access your ZapMail dashboard.
+          {isSignUp ? "Sign up to start using ZapMail." : "Sign in to access your ZapMail dashboard."}
         </p>
+
+        <form onSubmit={handleSubmit} className="w-full space-y-4 mb-6">
+          {isSignUp && (
+            <input
+              type="text"
+              placeholder="Full Name"
+              value={name}
+              onChange={(e) => setName(e.target.value)}
+              className="w-full px-4 py-3 rounded-xl bg-white/5 border border-white/10 text-white placeholder:text-emerald-50/50 focus:outline-none focus:ring-2 focus:ring-emerald-500"
+              required
+            />
+          )}
+          <input
+            type="email"
+            placeholder="Email"
+            value={email}
+            onChange={(e) => setEmail(e.target.value)}
+            className="w-full px-4 py-3 rounded-xl bg-white/5 border border-white/10 text-white placeholder:text-emerald-50/50 focus:outline-none focus:ring-2 focus:ring-emerald-500"
+            required
+          />
+          <input
+            type="password"
+            placeholder="Password"
+            value={password}
+            onChange={(e) => setPassword(e.target.value)}
+            className="w-full px-4 py-3 rounded-xl bg-white/5 border border-white/10 text-white placeholder:text-emerald-50/50 focus:outline-none focus:ring-2 focus:ring-emerald-500"
+            required
+          />
+          <button 
+            type="submit"
+            className="w-full bg-emerald-500 text-brand-dark font-semibold py-3 rounded-xl hover:bg-emerald-400 transition-colors"
+          >
+            {isSignUp ? "Sign Up" : "Sign In"}
+          </button>
+        </form>
+
+        <button 
+          onClick={() => setIsSignUp(!isSignUp)}
+          className="text-emerald-50/80 hover:text-white mb-6 text-sm"
+        >
+          {isSignUp ? "Already have an account? Sign In" : "Don't have an account? Sign Up"}
+        </button>
+
+        <div className="w-full flex items-center gap-4 mb-6">
+          <div className="flex-1 h-px bg-white/10" />
+          <span className="text-emerald-50/50 text-sm">OR</span>
+          <div className="flex-1 h-px bg-white/10" />
+        </div>
 
         <button 
           onClick={onLogin}
-          className="relative overflow-hidden bg-white/10 backdrop-blur-md border border-white/20 text-white px-8 py-4 rounded-xl font-semibold text-base sm:text-lg transition-all hover:scale-[1.02] active:scale-[0.98] flex items-center gap-3 group shadow-xl shadow-emerald-500/10 w-full justify-center"
+          className="relative overflow-hidden bg-white/10 backdrop-blur-md border border-white/20 text-white px-8 py-3 rounded-xl font-semibold transition-all hover:scale-[1.02] active:scale-[0.98] flex items-center gap-3 group shadow-xl shadow-emerald-500/10 w-full justify-center"
         >
           <div className="bg-white p-1 rounded-lg">
             <svg className="w-5 h-5" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
@@ -41,8 +105,6 @@ export function AuthScreen({ onLogin }: AuthScreenProps) {
             </svg>
           </div>
           Continue with Google
-          <span className="group-hover:translate-x-1 transition-transform ml-1">→</span>
-          <div className="absolute inset-0 animate-shimmer pointer-events-none opacity-30" />
         </button>
       </motion.div>
     </div>
