@@ -401,7 +401,7 @@ export function DashboardTab({ onNavigate }: { onNavigate: (tab: string) => void
                     <h4 className="font-semibold text-gray-900">{list.name}</h4>
                   </div>
                   <div className="flex items-center gap-2">
-                    <button className="text-gray-400 hover:text-emerald-500 opacity-0 group-hover:opacity-100 transition-opacity" onClick={() => {
+                    <button className="text-gray-400 hover:text-emerald-500 transition-colors" onClick={() => {
                       setEditingList(list);
                       setListName(list.name);
                       setSmartEmails(list.emails);
@@ -418,7 +418,7 @@ export function DashboardTab({ onNavigate }: { onNavigate: (tab: string) => void
                       <Edit3 className="w-4 h-4" />
                     </button>
                     {list.rtdbConfig && (
-                      <button className="text-gray-400 hover:text-emerald-500 opacity-0 group-hover:opacity-100 transition-opacity" onClick={async () => {
+                      <button className="text-gray-400 hover:text-emerald-500 transition-colors" onClick={async () => {
                         if (list.rtdbConfig) {
                           const newEmails = await fetchEmailsFromRTDB(list.rtdbConfig);
                           const updatedEmails = [...new Set([...list.emails, ...newEmails])];
@@ -429,7 +429,7 @@ export function DashboardTab({ onNavigate }: { onNavigate: (tab: string) => void
                         <RefreshCw className="w-4 h-4" />
                       </button>
                     )}
-                    <button className="text-gray-400 hover:text-red-500 opacity-0 group-hover:opacity-100 transition-opacity" onClick={() => removeBroadcastList(list.id)}>
+                    <button className="text-gray-400 hover:text-red-500 transition-colors" onClick={() => removeBroadcastList(list.id)}>
                       <X className="w-4 h-4" />
                     </button>
                   </div>

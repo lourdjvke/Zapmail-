@@ -2,6 +2,7 @@ import React, { useState, useRef, useEffect } from "react";
 import { motion, AnimatePresence } from "motion/react";
 import { Layout, Check, Trash2 } from "lucide-react";
 import { useFirebaseData, EmailTemplate } from "../lib/store";
+import { sanitizeHtml } from "../lib/utils";
 
 interface TemplatesTabProps {
   onUseTemplate: (html: string) => void;
@@ -123,7 +124,7 @@ export function TemplatesTab({ onUseTemplate }: TemplatesTabProps) {
           <TemplateCard 
             key={template.id} 
             template={template} 
-            onUse={onUseTemplate}
+            onUse={(html) => onUseTemplate(sanitizeHtml(html))}
             onDelete={(id) => setDeleteConfirmId(id)}
           />
         ))}

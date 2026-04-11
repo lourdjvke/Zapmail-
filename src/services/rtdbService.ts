@@ -20,8 +20,8 @@ export async function fetchEmailsFromRTDB(config: {
     baseUrl = `https://${baseUrl}`;
   }
 
-  const basePath = config.folder.trim().replace(/^\/+|\/+$/g, '');
-  const subPath = config.subfolders.map(s => s.trim().replace(/^\/+|\/+$/g, '')).filter(Boolean).join('/');
+  const basePath = (config.folder || '').trim().replace(/^\/+|\/+$/g, '');
+  const subPath = (config.subfolders || []).map(s => s.trim().replace(/^\/+|\/+$/g, '')).filter(Boolean).join('/');
   const path = subPath ? `${basePath}/${subPath}` : basePath;
   
   // Construct REST API URL

@@ -2,6 +2,8 @@ import React, { useState, useRef, useEffect, useMemo } from "react";
 import { motion, AnimatePresence } from "motion/react";
 import { Upload, X, Send, Paperclip, Image as ImageIcon, Type, FileText, Users, ChevronDown, Eye, Layout, Edit3, Palette, Trash2, Link as LinkIcon, AlertTriangle, Check } from "lucide-react";
 import { useFirebaseData, useAuth, BroadcastList, EmailTemplate, EmailJob } from "../lib/store";
+import { fetchEmailsFromRTDB } from "../services/rtdbService";
+import { sanitizeHtml } from "../lib/utils";
 
 interface ComposeTabProps {
   initialHtml?: string | null;
@@ -55,7 +57,7 @@ export function ComposeTab({ initialHtml, onHtmlUsed }: ComposeTabProps) {
       userId: user.uid,
       to: emails.join(","),
       sub: subject,
-      msg: composeType === "plain" ? content : htmlContent,
+      msg: sanitizeHtml(composeType === "plain" ? content : htmlContent),
       isHtml: (composeType === "custom").toString()
     });
 
@@ -176,7 +178,7 @@ export function ComposeTab({ initialHtml, onHtmlUsed }: ComposeTabProps) {
 
     const newTemplate = {
       name: templateName,
-      html: finalHtml,
+      html: sanitizeHtml(finalHtml),
       created: new Date().toISOString(),
     };
 
@@ -398,7 +400,7 @@ export function ComposeTab({ initialHtml, onHtmlUsed }: ComposeTabProps) {
         <div className="p-4 border-b border-gray-100 flex flex-col sm:flex-row sm:items-start gap-4">
           <label className="text-gray-500 font-medium w-16 pt-2">To:</label>
           <div className="flex-1 space-y-3">
-            <div className="flex items-center gap-2 bg-gray-50 border border-gray-200 rounded-xl p-2 min-h-[48px] focus-within:ring-2 focus-within:ring-emerald-500/20 focus-within:border-emerald-500 transition-all overflow-hidden">
+            <div className="flex items-center gap-2 bg-gray-50 border border-gray-200 rounded-xl p-2 min-h-[48px] max-h-[120px] focus-within:ring-2 focus-within:ring-emerald-500/20 focus-within:border-emerald-500 transition-all overflow-y-auto">
               <div className="flex flex-wrap gap-2 w-full items-center pb-1">
                 <AnimatePresence>
                   {emails.map(email => (
@@ -573,24 +575,6 @@ export function ComposeTab({ initialHtml, onHtmlUsed }: ComposeTabProps) {
             <button className="p-2 text-gray-400 hover:text-gray-600 hover:bg-gray-200 rounded-full transition-colors">
               <Paperclip className="w-5 h-5" />
             </button>
-            {activeJob && (
-              <div className="flex items-center gap-3 ml-4">
-                <div className="text-xs font-medium text-gray-500">
-                  Sending: {activeJob.sent} / {activeJob.total}
-                </div>
-                <div className="w-32 h-2 bg-gray-200 rounded-full overflow-hidden">
-                  <div 
-                    className="h-full bg-emerald-500 transition-all duration-500" 
-                    style={{ width: `${(activeJob.sent / activeJob.total) * 100}%` }}
-                  />
-                </div>
-                {activeJob.status === 'completed' && (
-                  <span className="text-xs text-emerald-600 font-bold flex items-center gap-1">
-                    <Check className="w-3 h-3" /> Done
-                  </span>
-                )}
-              </div>
-            )}
           </div>
           <button 
             onClick={handleSendEmail}
@@ -682,6 +666,7 @@ export function ComposeTab({ initialHtml, onHtmlUsed }: ComposeTabProps) {
                 </div>
                 <button 
                   onClick={() => {
+                    setHtmlContent(sanitizeHtml(htmlContent));
                     setIsPreviewOpen(false);
                     setIsInteractive(false);
                     setEditingElement(null);
