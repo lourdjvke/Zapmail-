@@ -1,11 +1,26 @@
-<div align="center">
+# Zapmail
 
-<img width="1200" height="475" alt="GHBanner" src="https://github.com/user-attachments/assets/0aa67016-6eaf-458a-adb2-6e31a0763ed6" />
+Zapmail is a comprehensive email marketing and campaign management platform designed to streamline your outreach efforts. Built with modern web technologies, Zapmail provides a robust set of tools for managing leads, crafting email templates, and executing batch email campaigns with real-time tracking.
 
-  <h1>Built with AI Studio</h2>
+## Key Features
 
-  <p>The fastest path from prompt to production with Gemini.</p>
+*   **Campaign Management**: Compose and send batch emails efficiently.
+*   **Lead Management**: Easily add, import, and manage your contact lists.
+*   **Template System**: Design, save, and reuse custom email templates.
+*   **Interactive Email Editor**: Edit your email content directly in a live preview mode.
+*   **Real-time Analytics**: Track your campaign performance with a detailed dashboard and job history.
+*   **Secure Authentication**: Powered by Firebase Auth for secure user access.
 
-  <a href="https://aistudio.google.com/apps">Start building</a>
+## Tech Stack
 
-</div>
+*   **Frontend**: React, Tailwind CSS
+*   **Backend/Database**: Firebase Realtime Database
+*   **Authentication**: Firebase Authentication
+*   **Email Engine**: Google Apps Script integration
+
+## Getting Started
+
+1. Clone the repository.
+2. Install dependencies: `npm install`
+3. Configure Firebase: Set up your Firebase project and update `src/lib/firebase.ts` with your credentials.
+4. Run the development server: `npm run dev`
