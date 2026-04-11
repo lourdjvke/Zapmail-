@@ -101,8 +101,8 @@ export function TemplatesTab({ onUseTemplate }: TemplatesTabProps) {
         <div className="w-20 h-20 bg-white/10 rounded-full flex items-center justify-center mb-6 backdrop-blur-sm">
           <Layout className="w-10 h-10 text-emerald-400" />
         </div>
-        <h2 className="text-2xl font-semibold mb-2">No Templates Found</h2>
-        <p className="text-emerald-100/60 max-w-md">
+        <h2 className="text-2xl font-semibold mb-2 text-white">No Templates Found</h2>
+        <p className="text-gray-400 max-w-md">
           Create custom emails in the Compose tab and save them as templates to see them here.
         </p>
       </div>

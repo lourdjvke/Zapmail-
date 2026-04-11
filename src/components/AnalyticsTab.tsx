@@ -4,7 +4,7 @@ import { LineChart, Line, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianG
 import { Plus, MoreHorizontal, ChevronDown, Filter } from "lucide-react";
 import { useFirebaseData, EmailJob } from "../lib/store";
 
-function FilterDropdown({ label, options, badge }: { label: string, options: string[], badge?: number }) {
+function FilterDropdown({ label, options, badge, onSelect }: { label: string, options: string[], badge?: number, onSelect?: (opt: string) => void }) {
   const [isOpen, setIsOpen] = useState(false);
   const [selected, setSelected] = useState("All");
   return (
@@ -28,7 +28,7 @@ function FilterDropdown({ label, options, badge }: { label: string, options: str
             {options.map(opt => (
               <button 
                 key={opt}
-                onClick={() => { setSelected(opt); setIsOpen(false); }}
+                onClick={() => { setSelected(opt); setIsOpen(false); if (onSelect) onSelect(opt); }}
                 className={`w-full text-left px-4 py-2 text-sm hover:bg-gray-50 ${selected === opt ? 'text-emerald-600 font-medium bg-emerald-50/50' : 'text-gray-700'}`}
               >
                 {opt}
@@ -43,16 +43,30 @@ function FilterDropdown({ label, options, badge }: { label: string, options: str
 
 export function AnalyticsTab() {
   const { data: jobs } = useFirebaseData<EmailJob[]>('jobs', []);
+  const [period, setPeriod] = useState("This Year");
+  const [filter, setFilter] = useState("All");
 
   const performanceData = useMemo(() => {
     const months = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+    let filteredJobs = jobs;
+    
+    if (period === "Last 7 days") {
+      const weekAgo = new Date();
+      weekAgo.setDate(weekAgo.getDate() - 7);
+      filteredJobs = jobs.filter(j => new Date(j.created) >= weekAgo);
+    } else if (period === "Last 30 days") {
+      const monthAgo = new Date();
+      monthAgo.setDate(monthAgo.getDate() - 30);
+      filteredJobs = jobs.filter(j => new Date(j.created) >= monthAgo);
+    }
+
     return months.map((m, i) => {
-      const monthJobs = jobs.filter(j => new Date(j.created).getMonth() === i);
+      const monthJobs = filteredJobs.filter(j => new Date(j.created).getMonth() === i);
       const success = monthJobs.reduce((acc, j) => acc + (j.sent || 0), 0);
       const failed = monthJobs.reduce((acc, j) => acc + (j.failed || 0), 0);
       return { name: m, success, failed };
     });
-  }, [jobs]);
+  }, [jobs, period]);
 
   const stats = useMemo(() => {
     const totalSent = jobs.reduce((acc, j) => acc + (j.sent || 0), 0);
@@ -66,6 +80,12 @@ export function AnalyticsTab() {
       { label: "Active Jobs", value: jobs.filter(j => j.status === 'pending').length.toString(), trend: "2%", icon: "⭐" },
     ];
   }, [jobs]);
+
+  const filteredJobs = useMemo(() => {
+    if (filter === "Success") return jobs.filter(j => j.status === 'completed');
+    if (filter === "Ongoing") return jobs.filter(j => j.status === 'pending');
+    return jobs;
+  }, [jobs, filter]);
   return (
     <motion.div
       initial={{ opacity: 0, y: 20 }}
@@ -115,22 +135,17 @@ export function AnalyticsTab() {
             <h3 className="text-lg font-semibold text-gray-900">Overall performance</h3>
             <div className="flex items-center gap-4 mt-2 text-sm">
               <label className="flex items-center gap-2 cursor-pointer">
-                <input type="checkbox" defaultChecked className="rounded text-emerald-500 focus:ring-emerald-500" />
-                <span className="text-gray-600">Succes</span>
+                <input type="checkbox" checked={filter === "All" || filter === "Success"} onChange={() => setFilter(prev => prev === "Success" ? "All" : "Success")} className="rounded text-emerald-500 focus:ring-emerald-500" />
+                <span className="text-gray-600">Success</span>
               </label>
               <label className="flex items-center gap-2 cursor-pointer">
-                <input type="checkbox" defaultChecked className="rounded text-amber-500 focus:ring-amber-500" />
+                <input type="checkbox" checked={filter === "All" || filter === "Ongoing"} onChange={() => setFilter(prev => prev === "Ongoing" ? "All" : "Ongoing")} className="rounded text-amber-500 focus:ring-amber-500" />
                 <span className="text-gray-600">On-going</span>
               </label>
             </div>
           </div>
           <div className="flex items-center gap-2 text-sm">
-            <div className="bg-gray-100 rounded-lg p-1 flex">
-              <button className="px-3 py-1 rounded-md text-gray-500 hover:text-gray-900 font-medium">All</button>
-              <button className="px-3 py-1 bg-white rounded-md text-gray-900 shadow-sm font-medium">Campaigns</button>
-              <button className="px-3 py-1 rounded-md text-gray-500 hover:text-gray-900 font-medium">Email</button>
-            </div>
-            <FilterDropdown label="Period" options={["Last 7 days", "Last 30 days", "This Year"]} />
+            <FilterDropdown label="Period" options={["Last 7 days", "Last 30 days", "This Year"]} onSelect={setPeriod} />
           </div>
         </div>
         <div className="h-64 w-full">

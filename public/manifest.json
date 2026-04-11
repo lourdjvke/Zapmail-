@@ -1,0 +1,16 @@
+{
+  "name": "ZapMail",
+  "short_name": "ZapMail",
+  "description": "Streamline your email marketing campaigns with ZapMail.",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#96FF0D",
+  "theme_color": "#96FF0D",
+  "icons": [
+    {
+      "src": "https://cdn.dribbble.com/userupload/37123922/file/original-2b78b87f87e0d6bde7f94f25ce2f996a.png?resize=400x0",
+      "sizes": "400x400",
+      "type": "image/png"
+    }
+  ]
+}

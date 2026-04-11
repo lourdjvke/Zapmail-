@@ -8,9 +8,6 @@ const leadsSummary = [
   { label: "Contacted", value: "1.837", color: "text-gray-900" },
   { label: "Qualified", value: "257k", color: "text-gray-900" },
   { label: "Working", value: "156k", color: "text-gray-900" },
-  { label: "Proposal sent", value: "3.1k", color: "text-gray-900" },
-  { label: "Customer", value: "4.2k", color: "text-emerald-500" },
-  { label: "Lost leads", value: "1.837", color: "text-red-500" },
 ];
 
 function FilterDropdown({ label, options, onSelect }: { label: string, options: string[], onSelect: (opt: string) => void }) {
