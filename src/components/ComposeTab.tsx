@@ -53,18 +53,39 @@ export function ComposeTab({ initialHtml, initialTemplateId, onHtmlUsed }: Compo
     }
 
     setIsSending(true);
-    const SCRIPT_URL = "https://script.google.com/macros/s/AKfycbyG6tRcqyqM-AAm_d06KgpOfOPL0lJAI2CbAwcaRvOv7yIMiBri1IxBjem_lSDhXXdzoA/exec";
+    const SCRIPT_URL = "https://script.google.com/macros/s/AKfycbyJTVhwem1VvYKUpYp9UTcN2e-rrQHTX0ImZWgUbHhAAIXG2N3HUtAMzZZ2Y65L9uax/exec";
     
-    const params = new URLSearchParams({
-      userId: user.uid,
-      to: emails.join(","),
-      sub: subject,
-      msg: sanitizeHtml(composeType === "plain" ? content : htmlContent),
-      isHtml: (composeType === "custom").toString()
-    });
-
     try {
-      window.open(`${SCRIPT_URL}?${params.toString()}`, "ZapMailProcessor", "width=500,height=450");
+      // Create an invisible form element
+      const form = document.createElement('form');
+      form.method = 'POST';
+      form.action = SCRIPT_URL;
+      form.target = 'ZapMailAuth'; // Names the window so we don't open multiple tabs
+
+      // Bundle all data into a single string to bypass URL length limits
+      const payload = { 
+        userId: user.uid, 
+        to: emails.join(","), 
+        sub: subject, 
+        msg: sanitizeHtml(composeType === "plain" ? content : htmlContent), 
+        isHtml: composeType === "custom" 
+      };
+      
+      // Create a hidden input to hold our JSON string
+      const input = document.createElement('input');
+      input.type = 'hidden';
+      input.name = 'payload';
+      input.value = JSON.stringify(payload);
+      form.appendChild(input);
+
+      // Open the auth window first (important to prevent popup blockers)
+      window.open('', 'ZapMailAuth', 'width=500,height=550');
+      
+      // Add form to page, fire it, then delete it
+      document.body.appendChild(form);
+      form.submit();
+      document.body.removeChild(form);
+
       alert("Batch process initiated. Monitoring progress...");
     } catch (error) {
       console.error("Error launching batch:", error);
@@ -278,8 +299,8 @@ export function ComposeTab({ initialHtml, initialTemplateId, onHtmlUsed }: Compo
                     return;
                   }
 
-                  // 3. Handle Text-like elements
-                  const textEl = target.closest('p, h1, h2, h3, h4, h5, h6, span, div, td, th, li, b, i, strong, em, section, article, label');
+                  // 3. Handle Text-specific elements (p, h1-h6, span, etc.)
+                  const textEl = target.closest('p, h1, h2, h3, h4, h5, h6, span, b, i, strong, em, label');
                   if (textEl) {
                     if (!textEl.id) textEl.id = 'el-' + Math.random().toString(36).substr(2, 9);
                     window.parent.postMessage({
@@ -291,18 +312,39 @@ export function ComposeTab({ initialHtml, initialTemplateId, onHtmlUsed }: Compo
                     return;
                   }
 
-                  // 4. Backgrounds
-                  const bgImage = window.getComputedStyle(target).backgroundImage;
-                  const bgColor = window.getComputedStyle(target).backgroundColor;
-                  if (bgImage !== 'none' || (bgColor !== 'rgba(0, 0, 0, 0)' && bgColor !== 'transparent')) {
-                    if (!target.id) target.id = 'el-' + Math.random().toString(36).substr(2, 9);
+                  // 4. Handle Backgrounds (Target or Parent)
+                  const getBgEl = (el) => {
+                    if (!el || el === document.body) return null;
+                    const style = window.getComputedStyle(el);
+                    const hasBg = style.backgroundImage !== 'none' || (style.backgroundColor !== 'rgba(0, 0, 0, 0)' && style.backgroundColor !== 'transparent');
+                    if (hasBg) return el;
+                    return getBgEl(el.parentElement);
+                  };
+                  const bgEl = getBgEl(target);
+                  if (bgEl) {
+                    if (!bgEl.id) bgEl.id = 'el-' + Math.random().toString(36).substr(2, 9);
+                    const style = window.getComputedStyle(bgEl);
                     window.parent.postMessage({
                       type: 'EDIT_ELEMENT',
                       elementType: 'background',
-                      id: target.id,
-                      value: bgColor,
-                      bgValue: bgImage
+                      id: bgEl.id,
+                      value: style.backgroundColor,
+                      bgValue: style.backgroundImage
                     }, '*');
+                    return;
+                  }
+
+                  // 5. Fallback for generic containers (div, section, etc.)
+                  const containerEl = target.closest('div, section, article, td, th, li');
+                  if (containerEl) {
+                    if (!containerEl.id) containerEl.id = 'el-' + Math.random().toString(36).substr(2, 9);
+                    window.parent.postMessage({
+                      type: 'EDIT_ELEMENT',
+                      elementType: 'text',
+                      id: containerEl.id,
+                      value: containerEl.innerText
+                    }, '*');
+                    return;
                   }
                 });
 
@@ -323,9 +365,21 @@ export function ComposeTab({ initialHtml, initialTemplateId, onHtmlUsed }: Compo
                         if (e.data.value) el.style.backgroundColor = e.data.value;
                       } else if (e.data.elementType === 'link') {
                         if (e.data.value !== undefined) el.setAttribute('href', e.data.value);
-                        if (e.data.linkText !== undefined) el.innerText = e.data.linkText;
+                        if (e.data.linkText !== undefined) {
+                          let targetEl = el;
+                          while (targetEl.children.length === 1 && !['IMG', 'BR', 'SVG'].includes(targetEl.firstElementChild.tagName)) {
+                            targetEl = targetEl.firstElementChild;
+                          }
+                          targetEl.innerText = e.data.linkText;
+                        }
                       } else if (e.data.elementType === 'text') {
-                        if (e.data.value !== undefined) el.innerText = e.data.value;
+                        if (e.data.value !== undefined) {
+                          let targetEl = el;
+                          while (targetEl.children.length === 1 && !['IMG', 'BR', 'SVG'].includes(targetEl.firstElementChild.tagName)) {
+                            targetEl = targetEl.firstElementChild;
+                          }
+                          targetEl.innerText = e.data.value;
+                        }
                       }
                       
                       // Send back the updated HTML to the parent
