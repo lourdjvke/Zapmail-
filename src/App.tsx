@@ -10,7 +10,7 @@ import { TemplatesTab } from "./components/TemplatesTab";
 import { PricingTab } from "./components/PricingTab";
 import { Loader } from "./components/Loader";
 import { AuthScreen } from "./components/AuthScreen";
-import { useAuth } from "./lib/store";
+import { useAuth, EmailTemplate } from "./lib/store";
 import { auth, createUserWithEmailAndPassword, signInWithEmailAndPassword, updateProfile } from "./lib/firebase";
 import { GoogleAuthProvider, signInWithPopup, signOut } from "firebase/auth";
 
@@ -22,6 +22,7 @@ export default function App() {
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
   const [composeInitialHtml, setComposeInitialHtml] = useState<string | null>(null);
+  const [composeInitialTemplateId, setComposeInitialTemplateId] = useState<string | null>(null);
 
   useEffect(() => {
     if (!authLoading) {
@@ -84,8 +85,9 @@ export default function App() {
     { id: "Upgrade", icon: <Zap className="w-4 h-4 text-amber-400" /> },
   ];
 
-  const handleUseTemplate = (html: string) => {
-    setComposeInitialHtml(html);
+  const handleUseTemplate = (template: EmailTemplate) => {
+    setComposeInitialHtml(template.html);
+    setComposeInitialTemplateId(template.id);
     handleTabChange("Compose");
   };
 
@@ -220,7 +222,11 @@ export default function App() {
                 {activeTab === "Compose" && (
                   <ComposeTab 
                     initialHtml={composeInitialHtml} 
-                    onHtmlUsed={() => setComposeInitialHtml(null)} 
+                    initialTemplateId={composeInitialTemplateId}
+                    onHtmlUsed={() => {
+                      setComposeInitialHtml(null);
+                      setComposeInitialTemplateId(null);
+                    }} 
                   />
                 )}
               </motion.div>

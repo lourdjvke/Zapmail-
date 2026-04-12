@@ -7,10 +7,11 @@ import { sanitizeHtml } from "../lib/utils";
 
 interface ComposeTabProps {
   initialHtml?: string | null;
+  initialTemplateId?: string | null;
   onHtmlUsed?: () => void;
 }
 
-export function ComposeTab({ initialHtml, onHtmlUsed }: ComposeTabProps) {
+export function ComposeTab({ initialHtml, initialTemplateId, onHtmlUsed }: ComposeTabProps) {
   const [composeType, setComposeType] = useState<"plain" | "custom">("plain");
   const [emails, setEmails] = useState<string[]>([]);
   const [inputValue, setInputValue] = useState("");
@@ -23,6 +24,7 @@ export function ComposeTab({ initialHtml, onHtmlUsed }: ComposeTabProps) {
   const [isSaveModalOpen, setIsSaveModalOpen] = useState(false);
   const [showSaveSuccess, setShowSaveSuccess] = useState(false);
   const [templateName, setTemplateName] = useState("");
+  const [editingTemplateId, setEditingTemplateId] = useState<string | null>(null);
   const [isInteractive, setIsInteractive] = useState(false);
   const [editingElement, setEditingElement] = useState<{
     type: 'text' | 'image' | 'background' | 'link';
@@ -37,7 +39,7 @@ export function ComposeTab({ initialHtml, onHtmlUsed }: ComposeTabProps) {
   const iframeRef = useRef<HTMLIFrameElement>(null);
 
   const { data: broadcastLists } = useFirebaseData<BroadcastList[]>('broadcast_lists', []);
-  const { data: templates, addItem: addTemplate } = useFirebaseData<EmailTemplate[]>('templates', []);
+  const { data: templates, addItem, updateItem } = useFirebaseData<EmailTemplate[]>('templates', []);
   const { user } = useAuth();
   const [isSending, setIsSending] = useState(false);
   const [activeJobId, setActiveJobId] = useState<string | null>(null);
@@ -86,9 +88,16 @@ export function ComposeTab({ initialHtml, onHtmlUsed }: ComposeTabProps) {
     if (initialHtml) {
       setComposeType("custom");
       setHtmlContent(initialHtml);
+      if (initialTemplateId) {
+        setEditingTemplateId(initialTemplateId);
+        const existingTemplate = templates.find(t => t.id === initialTemplateId);
+        if (existingTemplate) {
+          setTemplateName(existingTemplate.name);
+        }
+      }
       onHtmlUsed?.();
     }
-  }, [initialHtml, onHtmlUsed]);
+  }, [initialHtml, initialTemplateId, onHtmlUsed, templates]);
 
   const extractEmails = (text: string) => {
     const emailRegex = /[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}/g;
@@ -176,15 +185,24 @@ export function ComposeTab({ initialHtml, onHtmlUsed }: ComposeTabProps) {
     const finalHtml = composeType === "plain" ? content : htmlContent;
     if (!finalHtml.trim() || !templateName.trim()) return;
 
-    const newTemplate = {
-      name: templateName,
-      html: sanitizeHtml(finalHtml),
-      created: new Date().toISOString(),
-    };
+    if (editingTemplateId) {
+      await updateItem(editingTemplateId, {
+        name: templateName,
+        html: sanitizeHtml(finalHtml),
+        lastUpdated: new Date().toISOString(),
+      });
+    } else {
+      const newTemplate = {
+        name: templateName,
+        html: sanitizeHtml(finalHtml),
+        created: new Date().toISOString(),
+      };
+      await addItem(newTemplate);
+    }
 
-    await addTemplate(newTemplate);
     setIsSaveModalOpen(false);
     setTemplateName("");
+    setEditingTemplateId(null);
     setShowSaveSuccess(true);
     setTimeout(() => setShowSaveSuccess(false), 3000);
   };
@@ -199,15 +217,16 @@ export function ComposeTab({ initialHtml, onHtmlUsed }: ComposeTabProps) {
           <html>
             <head>
               <style>
-                body { margin: 0; font-family: sans-serif; }
+                body { margin: 0; font-family: sans-serif; cursor: default; }
                 body.interactive { user-select: none; }
-                body.interactive [contenteditable="true"] { user-select: text; }
-                [contenteditable="true"] { outline: 2px dashed #10b981; padding: 2px; }
+                .editable-hover { outline: 2px dashed #10b981 !important; outline-offset: 2px; }
               </style>
             </head>
             <body class="${isInteractive ? 'interactive' : ''}">
               ${htmlContent || '<p style="color: #9ca3af; text-align: center; margin-top: 40px;">No HTML content to preview.</p>'}
               <script>
+                window.isInteractive = ${isInteractive};
+                
                 // Prevent all link clicks from navigating
                 document.body.addEventListener('click', (e) => {
                   const target = e.target;
@@ -216,49 +235,24 @@ export function ComposeTab({ initialHtml, onHtmlUsed }: ComposeTabProps) {
                   }
                 }, true);
 
+                document.body.addEventListener('mouseover', (e) => {
+                  if (!window.isInteractive) return;
+                  const target = e.target;
+                  if (target === document.body) return;
+                  target.classList.add('editable-hover');
+                });
+
+                document.body.addEventListener('mouseout', (e) => {
+                  const target = e.target;
+                  target.classList.remove('editable-hover');
+                });
+
                 document.body.addEventListener('dblclick', (e) => {
+                  if (!window.isInteractive) return;
                   e.preventDefault();
                   const target = e.target;
                   
-                  if (target.tagName === 'P' || target.tagName === 'H1' || target.tagName === 'H2' || target.tagName === 'H3' || target.tagName === 'SPAN' || target.tagName === 'DIV') {
-                    if (target.closest('a')) return; // Let link handler take over
-                    if (target.children.length === 0 || (target.children.length > 0 && target.innerText.trim().length > 0)) {
-                      if (!target.id) target.id = 'el-' + Math.random().toString(36).substr(2, 9);
-                      window.parent.postMessage({
-                        type: 'EDIT_ELEMENT',
-                        elementType: 'text',
-                        id: target.id,
-                        value: target.innerHTML
-                      }, '*');
-                      
-                      if (window.isInteractive) {
-                        target.contentEditable = true;
-                        target.focus();
-                        target.addEventListener('blur', () => {
-                          target.contentEditable = false;
-                          window.parent.postMessage({
-                            type: 'UPDATE_HTML',
-                            html: document.body.innerHTML
-                          }, '*');
-                        }, { once: true });
-                      }
-                      return;
-                    }
-                  }
-
-                  if (target.tagName === 'A' || target.closest('a')) {
-                    const link = target.tagName === 'A' ? target : target.closest('a');
-                    if (!link.id) link.id = 'el-' + Math.random().toString(36).substr(2, 9);
-                    window.parent.postMessage({
-                      type: 'EDIT_ELEMENT',
-                      elementType: 'link',
-                      id: link.id,
-                      value: link.href,
-                      linkText: link.innerText
-                    }, '*');
-                    return;
-                  }
-
+                  // 1. Handle Images
                   if (target.tagName === 'IMG') {
                     if (!target.id) target.id = 'el-' + Math.random().toString(36).substr(2, 9);
                     window.parent.postMessage({
@@ -270,9 +264,37 @@ export function ComposeTab({ initialHtml, onHtmlUsed }: ComposeTabProps) {
                     return;
                   }
 
+                  // 2. Handle Links
+                  const link = target.closest('a');
+                  if (link) {
+                    if (!link.id) link.id = 'el-' + Math.random().toString(36).substr(2, 9);
+                    window.parent.postMessage({
+                      type: 'EDIT_ELEMENT',
+                      elementType: 'link',
+                      id: link.id,
+                      value: link.getAttribute('href') || '',
+                      linkText: link.innerText
+                    }, '*');
+                    return;
+                  }
+
+                  // 3. Handle Text-like elements
+                  const textEl = target.closest('p, h1, h2, h3, h4, h5, h6, span, div, td, th, li, b, i, strong, em, section, article, label');
+                  if (textEl) {
+                    if (!textEl.id) textEl.id = 'el-' + Math.random().toString(36).substr(2, 9);
+                    window.parent.postMessage({
+                      type: 'EDIT_ELEMENT',
+                      elementType: 'text',
+                      id: textEl.id,
+                      value: textEl.innerText
+                    }, '*');
+                    return;
+                  }
+
+                  // 4. Backgrounds
                   const bgImage = window.getComputedStyle(target).backgroundImage;
                   const bgColor = window.getComputedStyle(target).backgroundColor;
-                  if (bgImage !== 'none' || bgColor !== 'rgba(0, 0, 0, 0)') {
+                  if (bgImage !== 'none' || (bgColor !== 'rgba(0, 0, 0, 0)' && bgColor !== 'transparent')) {
                     if (!target.id) target.id = 'el-' + Math.random().toString(36).substr(2, 9);
                     window.parent.postMessage({
                       type: 'EDIT_ELEMENT',
@@ -300,12 +322,22 @@ export function ComposeTab({ initialHtml, onHtmlUsed }: ComposeTabProps) {
                         if (e.data.bgValue) el.style.backgroundImage = e.data.bgValue;
                         if (e.data.value) el.style.backgroundColor = e.data.value;
                       } else if (e.data.elementType === 'link') {
-                        if (e.data.value) el.href = e.data.value;
-                        if (e.data.linkText) el.innerText = e.data.linkText;
+                        if (e.data.value !== undefined) el.setAttribute('href', e.data.value);
+                        if (e.data.linkText !== undefined) el.innerText = e.data.linkText;
+                      } else if (e.data.elementType === 'text') {
+                        if (e.data.value !== undefined) el.innerText = e.data.value;
                       }
+                      
+                      // Send back the updated HTML to the parent
+                      const clone = document.body.cloneNode(true);
+                      const scripts = clone.querySelectorAll('script');
+                      scripts.forEach(s => s.remove());
+                      const hovers = clone.querySelectorAll('.editable-hover');
+                      hovers.forEach(h => h.classList.remove('editable-hover'));
+                      
                       window.parent.postMessage({
                         type: 'UPDATE_HTML',
-                        html: document.body.innerHTML
+                        html: clone.innerHTML.trim()
                       }, '*');
                     }
                   }
@@ -317,7 +349,7 @@ export function ComposeTab({ initialHtml, onHtmlUsed }: ComposeTabProps) {
         doc.close();
       }
     }
-  }, [isPreviewOpen, htmlContent]);
+  }, [isPreviewOpen, htmlContent, isInteractive]);
 
   useEffect(() => {
     const handleMessage = (e: MessageEvent) => {
@@ -327,7 +359,8 @@ export function ComposeTab({ initialHtml, onHtmlUsed }: ComposeTabProps) {
             type: e.data.elementType,
             id: e.data.id,
             value: e.data.value,
-            bgValue: e.data.bgValue
+            bgValue: e.data.bgValue,
+            linkText: e.data.linkText
           });
         }
       }
@@ -539,7 +572,7 @@ export function ComposeTab({ initialHtml, onHtmlUsed }: ComposeTabProps) {
                     onClick={() => setIsSaveModalOpen(true)}
                     className="flex items-center gap-1.5 text-sm bg-white border border-gray-200 px-3 py-1.5 rounded-lg hover:bg-gray-50 transition-colors text-emerald-600 font-medium"
                   >
-                    <Layout className="w-4 h-4" /> Save as Template
+                    <Layout className="w-4 h-4" /> {editingTemplateId ? "Update Template" : "Save as Template"}
                   </button>
                   <button 
                     onClick={() => setIsPreviewOpen(true)}
@@ -600,7 +633,7 @@ export function ComposeTab({ initialHtml, onHtmlUsed }: ComposeTabProps) {
             >
               <div className="p-4 sm:p-6 space-y-4">
                 <div className="flex items-center justify-between">
-                  <h3 className="text-lg font-semibold text-gray-900">Save as Template</h3>
+                  <h3 className="text-lg font-semibold text-gray-900">{editingTemplateId ? "Update Template" : "Save as Template"}</h3>
                   <button onClick={() => setIsSaveModalOpen(false)} className="text-gray-400 hover:text-gray-600">
                     <X className="w-5 h-5" />
                   </button>
@@ -628,7 +661,7 @@ export function ComposeTab({ initialHtml, onHtmlUsed }: ComposeTabProps) {
                     disabled={!templateName.trim()}
                     className="flex-1 px-4 py-2.5 rounded-xl bg-brand-dark text-white font-medium hover:bg-brand-dark/90 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
                   >
-                    Save Template
+                    {editingTemplateId ? "Update Template" : "Save Template"}
                   </button>
                 </div>
               </div>
@@ -692,14 +725,6 @@ export function ComposeTab({ initialHtml, onHtmlUsed }: ComposeTabProps) {
                       exit={{ y: 100 }}
                       className="absolute bottom-0 left-0 right-0 bg-white border-t border-gray-200 shadow-2xl p-4 z-50 flex flex-wrap items-center gap-4"
                     >
-                      <div className="flex items-center gap-2 text-gray-500 mr-2">
-                        {editingElement.type === 'text' && <Type className="w-4 h-4" />}
-                        {editingElement.type === 'image' && <ImageIcon className="w-4 h-4" />}
-                        {editingElement.type === 'background' && <Palette className="w-4 h-4" />}
-                        {editingElement.type === 'link' && <LinkIcon className="w-4 h-4" />}
-                        <span className="text-xs font-bold uppercase tracking-wider">Editing {editingElement.type}</span>
-                      </div>
-
                       {editingElement.type === 'image' && (
                         <div className="flex-1 flex flex-col sm:flex-row items-start sm:items-center gap-4">
                           <div className="flex items-center gap-3 bg-amber-50 border border-amber-100 p-2 rounded-lg max-w-xs">
@@ -792,9 +817,15 @@ export function ComposeTab({ initialHtml, onHtmlUsed }: ComposeTabProps) {
                       )}
 
                       {editingElement.type === 'text' && (
-                        <p className="text-sm text-gray-500 flex-1 italic">
-                          Double-click text in the preview to edit directly.
-                        </p>
+                        <div className="flex-1 flex flex-col gap-2">
+                          <span className="text-xs text-gray-400">Content:</span>
+                          <textarea 
+                            value={editingElement.value}
+                            onChange={(e) => updateEditingElement({ value: e.target.value })}
+                            className="w-full bg-gray-50 border border-gray-200 rounded-lg px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-emerald-500/20 min-h-[80px]"
+                            placeholder="Enter text or HTML..."
+                          />
+                        </div>
                       )}
 
                       <button 

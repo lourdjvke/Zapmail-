@@ -1,16 +1,16 @@
-import React, { useState, useRef, useEffect } from "react";
+import React, { useState, useRef, useEffect, useMemo } from "react";
 import { motion, AnimatePresence } from "motion/react";
 import { Layout, Check, Trash2 } from "lucide-react";
 import { useFirebaseData, EmailTemplate } from "../lib/store";
 import { sanitizeHtml } from "../lib/utils";
 
 interface TemplatesTabProps {
-  onUseTemplate: (html: string) => void;
+  onUseTemplate: (template: EmailTemplate) => void;
 }
 
 interface TemplateCardProps {
   template: EmailTemplate; 
-  onUse: (html: string) => void;
+  onUse: (template: EmailTemplate) => void;
   onDelete: (id: string) => void;
 }
 
@@ -67,7 +67,7 @@ const TemplateCard: React.FC<TemplateCardProps> = ({ template, onUse, onDelete }
 
       <div className="p-4 bg-white border-t border-gray-50">
         <button 
-          onClick={() => onUse(template.html)}
+          onClick={() => onUse(template)}
           className="w-full bg-brand-dark hover:bg-brand-dark/90 text-white py-2.5 rounded-xl font-medium transition-all flex items-center justify-center gap-2 group"
         >
           <Check className="w-4 h-4" />
@@ -87,6 +87,14 @@ export function TemplatesTab({ onUseTemplate }: TemplatesTabProps) {
     await removeItem(deleteConfirmId);
     setDeleteConfirmId(null);
   };
+
+  const sortedTemplates = useMemo(() => {
+    return [...templates].sort((a, b) => {
+      const dateA = new Date(a.created).getTime();
+      const dateB = new Date(b.created).getTime();
+      return dateB - dateA;
+    });
+  }, [templates]);
 
   if (loading) {
     return (
@@ -120,11 +128,11 @@ export function TemplatesTab({ onUseTemplate }: TemplatesTabProps) {
       </div>
 
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
-        {templates.map(template => (
+        {sortedTemplates.map(template => (
           <TemplateCard 
             key={template.id} 
             template={template} 
-            onUse={(html) => onUseTemplate(sanitizeHtml(html))}
+            onUse={onUseTemplate}
             onDelete={(id) => setDeleteConfirmId(id)}
           />
         ))}
