@@ -153,6 +153,16 @@ export interface EmailTemplate {
   name: string;
   html: string;
   created: string;
+  favorite?: boolean;
+}
+
+export interface Draft {
+  id: string;
+  subject: string;
+  content: string;
+  htmlContent: string;
+  composeType: 'plain' | 'custom';
+  updatedAt: string;
 }
 
 export interface EmailJob {

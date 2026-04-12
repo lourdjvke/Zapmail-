@@ -1,7 +1,7 @@
 import React, { useState, useRef, useEffect, useMemo } from "react";
 import { motion, AnimatePresence } from "motion/react";
 import { Upload, X, Send, Paperclip, Image as ImageIcon, Type, FileText, Users, ChevronDown, Eye, Layout, Edit3, Palette, Trash2, Link as LinkIcon, AlertTriangle, Check } from "lucide-react";
-import { useFirebaseData, useAuth, BroadcastList, EmailTemplate, EmailJob } from "../lib/store";
+import { useFirebaseData, useAuth, BroadcastList, EmailTemplate, EmailJob, Draft } from "../lib/store";
 import { fetchEmailsFromRTDB } from "../services/rtdbService";
 import { sanitizeHtml } from "../lib/utils";
 
@@ -22,28 +22,95 @@ export function ComposeTab({ initialHtml, initialTemplateId, onHtmlUsed }: Compo
   const [isBroadcastOpen, setIsBroadcastOpen] = useState(false);
   const [isPreviewOpen, setIsPreviewOpen] = useState(false);
   const [isSaveModalOpen, setIsSaveModalOpen] = useState(false);
+  const [isTestModalOpen, setIsTestModalOpen] = useState(false);
+  const [testEmail, setTestEmail] = useState('');
   const [showSaveSuccess, setShowSaveSuccess] = useState(false);
   const [templateName, setTemplateName] = useState("");
   const [editingTemplateId, setEditingTemplateId] = useState<string | null>(null);
-  const [isInteractive, setIsInteractive] = useState(false);
-  const [editingElement, setEditingElement] = useState<{
-    type: 'text' | 'image' | 'background' | 'link';
-    id: string;
-    value: string;
-    bgValue?: string;
-    linkText?: string;
-  } | null>(null);
+  const sendButtonRef = useRef<HTMLButtonElement>(null);
+  const longPressTimer = useRef<NodeJS.Timeout | null>(null);
+
+  const [notification, setNotification] = useState<string | null>(null);
+
+  const showNotification = (msg: string) => {
+    setNotification(msg);
+    setTimeout(() => setNotification(null), 3000);
+  };
+
+  const startLongPress = () => {
+    if (!subject.trim() && !content.trim()) {
+      showNotification("Add a subject or content to continue...");
+      return;
+    }
+    longPressTimer.current = setTimeout(() => {
+      setIsTestModalOpen(true);
+    }, 500);
+  };
+
+  const endLongPress = () => {
+    if (longPressTimer.current) clearTimeout(longPressTimer.current);
+  };
+
+  const handleTestSend = async () => {
+    if (!user || !testEmail) return;
+    
+    // Logic for test send
+    const SCRIPT_URL = "https://script.google.com/macros/s/AKfycbyJTVhwem1VvYKUpYp9UTcN2e-rrQHTX0ImZWgUbHhAAIXG2N3HUtAMzZZ2Y65L9uax/exec";
+    const payload = { 
+      userId: user.uid, 
+      to: testEmail, 
+      sub: `Test: ${subject}`, 
+      msg: sanitizeHtml(composeType === "plain" ? content : htmlContent), 
+      isHtml: composeType === "custom" 
+    };
+    
+    // Use the same POST method as handleSendEmail
+    const form = document.createElement('form');
+    form.method = 'POST';
+    form.action = SCRIPT_URL;
+    form.target = 'ZapMailAuth';
+    const input = document.createElement('input');
+    input.type = 'hidden';
+    input.name = 'payload';
+    input.value = JSON.stringify(payload);
+    form.appendChild(input);
+    window.open('', 'ZapMailAuth', 'width=500,height=550');
+    document.body.appendChild(form);
+    form.submit();
+    document.body.removeChild(form);
+    
+    setIsTestModalOpen(false);
+    setTestEmail("");
+  };
 
   const fileInputRef = useRef<HTMLInputElement>(null);
   const editorRef = useRef<HTMLDivElement>(null);
   const iframeRef = useRef<HTMLIFrameElement>(null);
 
   const { data: broadcastLists } = useFirebaseData<BroadcastList[]>('broadcast_lists', []);
-  const { data: templates, addItem, updateItem } = useFirebaseData<EmailTemplate[]>('templates', []);
+  const { data: templates, addItem: addTemplate, updateItem: updateTemplate } = useFirebaseData<EmailTemplate[]>('templates', []);
+  const { addItem: addDraft } = useFirebaseData<Draft[]>('drafts', []);
   const { user } = useAuth();
   const [isSending, setIsSending] = useState(false);
   const [activeJobId, setActiveJobId] = useState<string | null>(null);
   const { data: outgoingJobs } = useFirebaseData<any[]>('outgoing_emails', []);
+  const [isInteractive, setIsInteractive] = useState(false);
+  const [editingElement, setEditingElement] = useState<any | null>(null);
+
+  const handleSaveDraft = async () => {
+    const finalHtml = composeType === "plain" ? content : htmlContent;
+    if (!subject.trim() && !finalHtml.trim()) return;
+
+    await addDraft({
+      subject,
+      content,
+      htmlContent: finalHtml,
+      composeType,
+      updatedAt: new Date().toISOString(),
+    });
+    setShowSaveSuccess(true);
+    setTimeout(() => setShowSaveSuccess(false), 3000);
+  };
 
   const handleSendEmail = async () => {
     if (!user) return;
@@ -207,7 +274,7 @@ export function ComposeTab({ initialHtml, initialTemplateId, onHtmlUsed }: Compo
     if (!finalHtml.trim() || !templateName.trim()) return;
 
     if (editingTemplateId) {
-      await updateItem(editingTemplateId, {
+      await updateTemplate(editingTemplateId, {
         name: templateName,
         html: sanitizeHtml(finalHtml),
         lastUpdated: new Date().toISOString(),
@@ -218,7 +285,7 @@ export function ComposeTab({ initialHtml, initialTemplateId, onHtmlUsed }: Compo
         html: sanitizeHtml(finalHtml),
         created: new Date().toISOString(),
       };
-      await addItem(newTemplate);
+      await addTemplate(newTemplate);
     }
 
     setIsSaveModalOpen(false);
@@ -461,24 +528,10 @@ export function ComposeTab({ initialHtml, initialTemplateId, onHtmlUsed }: Compo
       exit={{ opacity: 0, y: -20 }}
       className="space-y-6"
     >
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 text-white">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 text-gray-900">
         <div>
           <h1 className="text-2xl font-semibold">Compose Email</h1>
-          <p className="text-emerald-100/80 text-sm mt-1">Create and send your campaigns to multiple recipients</p>
-        </div>
-        <div className="flex items-center gap-2 bg-white/10 p-1 rounded-lg backdrop-blur-sm">
-          <button 
-            onClick={() => setComposeType("plain")}
-            className={`px-4 py-1.5 rounded-md text-sm font-medium transition-colors ${composeType === "plain" ? "bg-white text-brand-dark" : "text-white hover:bg-white/10"}`}
-          >
-            Visual Editor
-          </button>
-          <button 
-            onClick={() => setComposeType("custom")}
-            className={`px-4 py-1.5 rounded-md text-sm font-medium transition-colors ${composeType === "custom" ? "bg-white text-brand-dark" : "text-white hover:bg-white/10"}`}
-          >
-            Custom HTML
-          </button>
+          <p className="text-gray-500 text-sm mt-1">Create and send your campaigns to multiple recipients</p>
         </div>
       </div>
 
@@ -591,33 +644,13 @@ export function ComposeTab({ initialHtml, initialTemplateId, onHtmlUsed }: Compo
         {/* Editor */}
         <div className="flex-1 flex flex-col relative bg-white">
           {composeType === "plain" ? (
-            <>
-              <div className="bg-gray-50 border-b border-gray-100 p-2 flex items-center justify-between text-gray-500 overflow-x-auto hide-scrollbar">
-                <div className="flex items-center gap-1">
-                  <button onClick={() => document.execCommand('bold')} className="p-1.5 hover:bg-gray-200 rounded font-bold transition-colors">B</button>
-                  <button onClick={() => document.execCommand('italic')} className="p-1.5 hover:bg-gray-200 rounded italic transition-colors">I</button>
-                  <button onClick={() => document.execCommand('underline')} className="p-1.5 hover:bg-gray-200 rounded underline transition-colors">U</button>
-                  <div className="w-px h-4 bg-gray-300 mx-2" />
-                  <button onClick={insertImage} className="p-1.5 hover:bg-gray-200 rounded transition-colors" title="Insert Image"><ImageIcon className="w-4 h-4" /></button>
-                </div>
-                <div className="flex items-center gap-2">
-                  <button 
-                    onClick={() => setIsSaveModalOpen(true)}
-                    className="flex items-center gap-1.5 text-sm bg-white border border-gray-200 px-3 py-1.5 rounded-lg hover:bg-gray-50 transition-colors text-emerald-600 font-medium whitespace-nowrap"
-                  >
-                    <Layout className="w-4 h-4" /> Save as Template
-                  </button>
-                </div>
-              </div>
-              <div 
-                ref={editorRef}
-                contentEditable
-                onInput={(e) => setContent(e.currentTarget.innerHTML)}
-                className="flex-1 w-full p-6 outline-none text-gray-700 font-sans overflow-y-auto"
-                style={{ minHeight: "400px" }}
-                placeholder="Write your email here..."
-              />
-            </>
+            <textarea 
+              value={content}
+              onChange={(e) => setContent(e.target.value)}
+              className="flex-1 w-full p-6 outline-none text-gray-700 font-sans overflow-y-auto resize-none"
+              style={{ minHeight: "400px" }}
+              placeholder="Write your email here..."
+            />
           ) : (
             <>
               <div className="bg-gray-50 border-b border-gray-100 p-2 flex items-center justify-end text-gray-500">
@@ -660,10 +693,15 @@ export function ComposeTab({ initialHtml, initialTemplateId, onHtmlUsed }: Compo
         <div className="p-4 border-t border-gray-100 bg-gray-50 flex items-center justify-between mt-auto">
           <div className="flex items-center gap-2">
             <button className="p-2 text-gray-400 hover:text-gray-600 hover:bg-gray-200 rounded-full transition-colors">
-              <Paperclip className="w-5 h-5" />
+              <FileText className="w-5 h-5" />
             </button>
           </div>
           <button 
+            onMouseDown={startLongPress}
+            onMouseUp={endLongPress}
+            onMouseLeave={endLongPress}
+            onTouchStart={startLongPress}
+            onTouchEnd={endLongPress}
             onClick={handleSendEmail}
             disabled={isSending && activeJob?.status !== 'completed'}
             className="relative overflow-hidden bg-brand-dark hover:bg-brand-dark/90 text-white px-6 py-2.5 rounded-xl font-medium transition-colors flex items-center gap-2 group disabled:opacity-50"
@@ -674,6 +712,20 @@ export function ComposeTab({ initialHtml, initialTemplateId, onHtmlUsed }: Compo
           </button>
         </div>
       </div>
+
+      {/* Notification */}
+      <AnimatePresence>
+        {notification && (
+          <motion.div
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: -20 }}
+            className="fixed bottom-4 right-4 bg-gray-900 text-white px-4 py-2 rounded-lg shadow-lg text-sm z-[120]"
+          >
+            {notification}
+          </motion.div>
+        )}
+      </AnimatePresence>
 
       {/* Save Template Modal */}
       <AnimatePresence>
@@ -716,6 +768,50 @@ export function ComposeTab({ initialHtml, initialTemplateId, onHtmlUsed }: Compo
                     className="flex-1 px-4 py-2.5 rounded-xl bg-brand-dark text-white font-medium hover:bg-brand-dark/90 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
                   >
                     {editingTemplateId ? "Update Template" : "Save Template"}
+                  </button>
+                </div>
+              </div>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
+
+      {/* Test Email Modal */}
+      <AnimatePresence>
+        {isTestModalOpen && (
+          <div className="fixed inset-0 z-[110] flex items-end sm:items-center justify-center bg-brand-dark/40 backdrop-blur-sm p-0 sm:p-4">
+            <motion.div 
+              initial={{ y: "100%" }}
+              animate={{ y: 0 }}
+              exit={{ y: "100%" }}
+              className="w-full sm:max-w-md bg-white rounded-t-2xl sm:rounded-2xl shadow-2xl overflow-hidden"
+            >
+              <div className="p-4 sm:p-6 space-y-4">
+                <h3 className="text-lg font-semibold text-gray-900">Send Test Email</h3>
+                <div className="space-y-2">
+                  <label className="text-sm font-medium text-gray-500">Test Email Address</label>
+                  <input 
+                    autoFocus
+                    type="email"
+                    value={testEmail}
+                    onChange={(e) => setTestEmail(e.target.value)}
+                    placeholder="e.g. test@example.com"
+                    className="w-full bg-gray-50 border border-gray-200 rounded-xl px-4 py-3 text-sm outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 transition-all"
+                  />
+                </div>
+                <div className="flex gap-3 pt-2">
+                  <button 
+                    onClick={() => setIsTestModalOpen(false)}
+                    className="flex-1 px-4 py-2.5 rounded-xl border border-gray-200 text-gray-600 font-medium hover:bg-gray-50 transition-colors"
+                  >
+                    Cancel
+                  </button>
+                  <button 
+                    onClick={handleTestSend}
+                    disabled={!testEmail.trim()}
+                    className="flex-1 px-4 py-2.5 rounded-xl bg-brand-dark text-white font-medium hover:bg-brand-dark/90 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                  >
+                    Send Test
                   </button>
                 </div>
               </div>

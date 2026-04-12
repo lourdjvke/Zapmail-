@@ -243,17 +243,17 @@ export function DashboardTab({ onNavigate }: { onNavigate: (tab: string) => void
     >
       {/* Top Section */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 items-center">
-        <div className="text-white space-y-4">
+        <div className="text-gray-900 space-y-4">
           <h1 className="text-3xl font-semibold flex items-center gap-2">
             Hi, {user?.displayName?.split(' ')[0] || 'Anthony'} <span className="text-2xl">👋</span>
           </h1>
-          <p className="text-emerald-100/80 max-w-md text-sm leading-relaxed">
+          <p className="text-gray-500 max-w-md text-sm leading-relaxed">
             Create a campaign to promote your business more widely and reach potential markets throughout your contacts!
           </p>
-          <button onClick={() => onNavigate("Campaign")} className="relative overflow-hidden bg-white/10 hover:bg-white/20 border border-white/20 text-white px-6 py-2.5 rounded-full font-medium transition-colors flex items-center gap-2 group w-fit">
+          <button onClick={() => onNavigate("Compose")} className="relative overflow-hidden bg-brand-dark hover:bg-brand-dark/90 text-white px-6 py-2.5 rounded-full font-medium transition-colors flex items-center gap-2 group w-fit">
             Start Campaign
             <span className="group-hover:translate-x-1 transition-transform">→</span>
-            <div className="absolute inset-0 animate-shimmer pointer-events-none" />
+            <div className="absolute inset-0 animate-shimmer pointer-events-none opacity-20" />
           </button>
         </div>
         <div className="hidden lg:flex justify-end relative h-48">

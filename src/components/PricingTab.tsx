@@ -68,9 +68,9 @@ export function PricingTab() {
       exit={{ opacity: 0, y: -20 }}
       className="space-y-8 pb-12"
     >
-      <div className="text-center text-white space-y-4">
+      <div className="text-center text-gray-900 space-y-4">
         <h1 className="text-4xl font-bold tracking-tight">Simple, Transparent Pricing</h1>
-        <p className="text-emerald-100/80 max-w-2xl mx-auto">
+        <p className="text-gray-500 max-w-2xl mx-auto">
           Choose the plan that best fits your business needs. Scale your outreach and reach more contacts with our premium tiers.
         </p>
       </div>

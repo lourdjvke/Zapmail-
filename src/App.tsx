@@ -7,6 +7,7 @@ import { CampaignTab } from "./components/CampaignTab";
 import { AnalyticsTab } from "./components/AnalyticsTab";
 import { ComposeTab } from "./components/ComposeTab";
 import { TemplatesTab } from "./components/TemplatesTab";
+import { DraftsTab } from "./components/DraftsTab";
 import { PricingTab } from "./components/PricingTab";
 import { Loader } from "./components/Loader";
 import { AuthScreen } from "./components/AuthScreen";
@@ -14,7 +15,7 @@ import { useAuth, EmailTemplate } from "./lib/store";
 import { auth, createUserWithEmailAndPassword, signInWithEmailAndPassword, updateProfile } from "./lib/firebase";
 import { GoogleAuthProvider, signInWithPopup, signOut } from "firebase/auth";
 
-type TabType = "Dashboard" | "Leads" | "Campaign" | "Analytics" | "Compose" | "Templates" | "Upgrade";
+type TabType = "Dashboard" | "Leads" | "Drafts" | "Analytics" | "Compose" | "Templates" | "Upgrade";
 
 export default function App() {
   const { user, loading: authLoading } = useAuth();
@@ -78,7 +79,7 @@ export default function App() {
   const tabs: { id: TabType; icon: ReactNode }[] = [
     { id: "Dashboard", icon: <LayoutDashboard className="w-4 h-4" /> },
     { id: "Leads", icon: <Users className="w-4 h-4" /> },
-    { id: "Campaign", icon: <Megaphone className="w-4 h-4" /> },
+    { id: "Drafts", icon: <Layout className="w-4 h-4" /> },
     { id: "Analytics", icon: <BarChart3 className="w-4 h-4" /> },
     { id: "Templates", icon: <Layout className="w-4 h-4" /> },
     { id: "Compose", icon: <Edit className="w-4 h-4" /> },
@@ -105,30 +106,27 @@ export default function App() {
 
   return (
     <div className="min-h-screen bg-slate-50 relative overflow-hidden">
-      {/* Background Header */}
-      <div className="absolute top-0 left-0 right-0 h-[300px] bg-brand-dark z-0" />
-
       {/* Main Content Container */}
       <div className="relative z-10 max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pt-6 pb-12">
         {/* Navigation Bar */}
-        <nav className="flex items-center justify-between mb-8 text-white">
+        <nav className="flex items-center justify-between mb-8 text-gray-900">
           <div className="flex items-center gap-2">
-            <div className="w-8 h-8 bg-emerald-400 rounded-lg flex items-center justify-center font-bold text-brand-dark">
+            <div className="w-8 h-8 bg-emerald-500 rounded-lg flex items-center justify-center font-bold text-white">
               Z
             </div>
             <span className="text-xl font-semibold tracking-tight">ZapMail</span>
           </div>
 
           {/* Desktop Navigation */}
-          <div className="hidden md:flex items-center gap-1 bg-white/10 p-1 rounded-full backdrop-blur-sm border border-white/10">
+          <div className="hidden md:flex items-center gap-1 bg-white p-1 rounded-full shadow-sm border border-gray-200">
             {tabs.map((tab) => (
               <button
                 key={tab.id}
                 onClick={() => handleTabChange(tab.id)}
                 className={`px-4 py-2 rounded-full text-sm font-medium transition-all flex items-center gap-2 ${
                   activeTab === tab.id
-                    ? "bg-white text-brand-dark shadow-sm"
-                    : "text-emerald-50 hover:text-white hover:bg-white/10"
+                    ? "bg-brand-dark text-white shadow-sm"
+                    : "text-gray-600 hover:text-gray-900 hover:bg-gray-100"
                 }`}
               >
                 <span className="opacity-70">{tab.icon}</span>
@@ -139,23 +137,23 @@ export default function App() {
 
           {/* Right Actions */}
           <div className="flex items-center gap-4">
-            <button className="hidden sm:flex items-center gap-1 text-sm text-emerald-50 hover:text-white transition-colors">
+            <button className="hidden sm:flex items-center gap-1 text-sm text-gray-600 hover:text-gray-900 transition-colors">
               <Globe className="w-4 h-4" /> ENG <ChevronDownIcon className="w-3 h-3" />
             </button>
             <button 
               onClick={handleLogout}
-              className="p-2 text-emerald-50 hover:text-white hover:bg-white/10 rounded-full transition-colors"
+              className="p-2 text-gray-600 hover:text-red-600 hover:bg-red-50 rounded-full transition-colors"
               title="Logout"
             >
               <LogOut className="w-5 h-5" />
             </button>
-            <button className="w-8 h-8 rounded-full overflow-hidden border-2 border-white/20 hover:border-white transition-colors">
+            <button className="w-8 h-8 rounded-full overflow-hidden border-2 border-gray-200 hover:border-brand-dark transition-colors">
               <img src={user.photoURL || "https://i.pravatar.cc/150?u=a042581f4e29026704d"} alt="User" className="w-full h-full object-cover" />
             </button>
             
             {/* Mobile Menu Toggle */}
             <button 
-              className="md:hidden p-2 text-emerald-50 hover:text-white hover:bg-white/10 rounded-lg transition-colors"
+              className="md:hidden p-2 text-gray-600 hover:text-gray-900 hover:bg-gray-100 rounded-lg transition-colors"
               onClick={() => setIsMobileMenuOpen(!isMobileMenuOpen)}
             >
               {isMobileMenuOpen ? <X className="w-6 h-6" /> : <Menu className="w-6 h-6" />}
@@ -170,7 +168,7 @@ export default function App() {
               initial={{ opacity: 0, height: 0 }}
               animate={{ opacity: 1, height: "auto" }}
               exit={{ opacity: 0, height: 0 }}
-              className="md:hidden bg-brand-dark/95 backdrop-blur-md rounded-2xl border border-white/10 overflow-hidden mb-6"
+              className="md:hidden bg-white shadow-lg rounded-2xl border border-gray-100 overflow-hidden mb-6"
             >
               <div className="p-2 flex flex-col gap-1">
                 {tabs.map((tab) => (
@@ -179,8 +177,8 @@ export default function App() {
                     onClick={() => handleTabChange(tab.id)}
                     className={`px-4 py-3 rounded-xl text-sm font-medium transition-all flex items-center gap-3 ${
                       activeTab === tab.id
-                        ? "bg-white text-brand-dark"
-                        : "text-emerald-50 hover:bg-white/10"
+                        ? "bg-brand-dark text-white"
+                        : "text-gray-600 hover:bg-gray-50 hover:text-gray-900"
                     }`}
                   >
                     <span className="text-lg">{tab.icon}</span>
@@ -215,7 +213,7 @@ export default function App() {
               >
                 {activeTab === "Dashboard" && <DashboardTab onNavigate={handleTabChange} />}
                 {activeTab === "Leads" && <LeadsTab />}
-                {activeTab === "Campaign" && <CampaignTab />}
+                {activeTab === "Drafts" && <DraftsTab />}
                 {activeTab === "Analytics" && <AnalyticsTab />}
                 {activeTab === "Templates" && <TemplatesTab onUseTemplate={handleUseTemplate} />}
                 {activeTab === "Upgrade" && <PricingTab />}

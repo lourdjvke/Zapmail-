@@ -12,6 +12,14 @@ body {
   background-color: #f8fafc;
   color: #0f172a;
   font-family: var(--font-sans);
+  -webkit-user-select: none;
+  user-select: none;
+  overscroll-behavior-y: none;
+}
+
+input, textarea, [contenteditable="true"] {
+  -webkit-user-select: text;
+  user-select: text;
 }
 
 /* Custom Scrollbar */

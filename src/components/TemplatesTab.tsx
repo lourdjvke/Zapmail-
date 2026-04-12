@@ -1,8 +1,8 @@
 import React, { useState, useRef, useEffect, useMemo } from "react";
 import { motion, AnimatePresence } from "motion/react";
-import { Layout, Check, Trash2 } from "lucide-react";
+import { Layout, Check, Trash2, Heart, Filter } from "lucide-react";
 import { useFirebaseData, EmailTemplate } from "../lib/store";
-import { sanitizeHtml } from "../lib/utils";
+import { TemplatePreview } from "./TemplatePreview";
 
 interface TemplatesTabProps {
   onUseTemplate: (template: EmailTemplate) => void;
@@ -12,9 +12,11 @@ interface TemplateCardProps {
   template: EmailTemplate; 
   onUse: (template: EmailTemplate) => void;
   onDelete: (id: string) => void;
+  onToggleFavorite: (template: EmailTemplate) => void;
+  onPreview: (template: EmailTemplate) => void;
 }
 
-const TemplateCard: React.FC<TemplateCardProps> = ({ template, onUse, onDelete }) => {
+const TemplateCard: React.FC<TemplateCardProps> = ({ template, onUse, onDelete, onToggleFavorite, onPreview }) => {
   const iframeRef = useRef<HTMLIFrameElement>(null);
 
   useEffect(() => {
@@ -48,17 +50,24 @@ const TemplateCard: React.FC<TemplateCardProps> = ({ template, onUse, onDelete }
       animate={{ opacity: 1, scale: 1 }}
       className="group relative bg-white rounded-2xl shadow-lg overflow-hidden border border-gray-100 flex flex-col h-[450px]"
     >
-      <div className="flex-1 relative bg-gray-50 overflow-hidden">
+      <div className="flex-1 relative bg-gray-50 overflow-hidden cursor-pointer" onClick={() => onPreview(template)}>
         <iframe 
           ref={iframeRef}
           className="w-full h-full border-none pointer-events-none select-none"
           title="Template Preview"
           style={{ zoom: 0.5, transform: 'scale(0.5)', transformOrigin: '0 0', width: '200%', height: '200%' }}
         />
-        <div className="absolute inset-0 z-10 bg-transparent cursor-default" />
+        <div className="absolute inset-0 z-10 bg-transparent" />
         
         <button 
-          onClick={() => onDelete(template.id)}
+          onClick={(e) => { e.stopPropagation(); onToggleFavorite(template); }}
+          className={`absolute top-3 left-3 p-2 bg-white/90 backdrop-blur-sm rounded-xl transition-all shadow-sm z-20 ${template.favorite ? 'text-red-500' : 'text-gray-400 hover:text-red-500'}`}
+        >
+          <Heart className={`w-4 h-4 ${template.favorite ? 'fill-current' : ''}`} />
+        </button>
+
+        <button 
+          onClick={(e) => { e.stopPropagation(); onDelete(template.id); }}
           className="absolute top-3 right-3 p-2 bg-white/90 backdrop-blur-sm text-red-500 rounded-xl opacity-0 group-hover:opacity-100 transition-all hover:bg-red-50 shadow-sm z-20"
         >
           <Trash2 className="w-4 h-4" />
@@ -79,8 +88,11 @@ const TemplateCard: React.FC<TemplateCardProps> = ({ template, onUse, onDelete }
 }
 
 export function TemplatesTab({ onUseTemplate }: TemplatesTabProps) {
-  const { data: templates, removeItem, loading } = useFirebaseData<EmailTemplate[]>('templates', []);
+  const { data: templates, removeItem, updateItem, loading } = useFirebaseData<EmailTemplate[]>('templates', []);
   const [deleteConfirmId, setDeleteConfirmId] = useState<string | null>(null);
+  const [previewTemplate, setPreviewTemplate] = useState<EmailTemplate | null>(null);
+  const [filter, setFilter] = useState<'All' | 'By me' | 'Saved'>('All');
+  const [visibleCount, setVisibleCount] = useState(8);
 
   const handleDeleteTemplate = async () => {
     if (!deleteConfirmId) return;
@@ -88,13 +100,20 @@ export function TemplatesTab({ onUseTemplate }: TemplatesTabProps) {
     setDeleteConfirmId(null);
   };
 
-  const sortedTemplates = useMemo(() => {
-    return [...templates].sort((a, b) => {
-      const dateA = new Date(a.created).getTime();
-      const dateB = new Date(b.created).getTime();
-      return dateB - dateA;
-    });
-  }, [templates]);
+  const handleToggleFavorite = async (template: EmailTemplate) => {
+    await updateItem(template.id, { favorite: !template.favorite });
+  };
+
+  const filteredTemplates = useMemo(() => {
+    let filtered = [...templates];
+    if (filter === 'Saved') {
+      filtered = filtered.filter(t => t.favorite);
+    }
+    // 'By me' is all templates as they are all created by the user
+    return filtered.sort((a, b) => new Date(b.created).getTime() - new Date(a.created).getTime());
+  }, [templates, filter]);
+
+  const displayedTemplates = filteredTemplates.slice(0, visibleCount);
 
   if (loading) {
     return (
@@ -104,39 +123,61 @@ export function TemplatesTab({ onUseTemplate }: TemplatesTabProps) {
     );
   }
 
-  if (templates.length === 0) {
-    return (
-      <div className="flex flex-col items-center justify-center min-h-[60vh] text-white text-center p-8">
-        <div className="w-20 h-20 bg-white/10 rounded-full flex items-center justify-center mb-6 backdrop-blur-sm">
-          <Layout className="w-10 h-10 text-emerald-400" />
-        </div>
-        <h2 className="text-2xl font-semibold mb-2 text-white">No Templates Found</h2>
-        <p className="text-gray-400 max-w-md">
-          Create custom emails in the Compose tab and save them as templates to see them here.
-        </p>
-      </div>
-    );
-  }
-
   return (
     <div className="space-y-8 pb-12">
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 text-white">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 text-gray-900">
         <div>
           <h1 className="text-2xl font-semibold">Explore Templates</h1>
-          <p className="text-emerald-100/80 text-sm mt-1">Browse and reuse your custom email designs</p>
+          <p className="text-gray-500 text-sm mt-1">Browse and reuse your custom email designs</p>
+        </div>
+        
+        <div className="flex bg-gray-100 p-1 rounded-xl">
+          {(['All', 'By me', 'Saved'] as const).map(f => (
+            <button 
+              key={f}
+              onClick={() => setFilter(f)}
+              className={`px-4 py-2 rounded-lg text-sm font-medium transition-all ${filter === f ? 'bg-white text-brand-dark shadow-sm' : 'text-gray-600 hover:bg-gray-200/50'}`}
+            >
+              {f}
+            </button>
+          ))}
         </div>
       </div>
 
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
-        {sortedTemplates.map(template => (
+        {displayedTemplates.map(template => (
           <TemplateCard 
             key={template.id} 
             template={template} 
             onUse={onUseTemplate}
             onDelete={(id) => setDeleteConfirmId(id)}
+            onToggleFavorite={handleToggleFavorite}
+            onPreview={() => setPreviewTemplate(template)}
           />
         ))}
       </div>
+
+      {visibleCount < filteredTemplates.length && (
+        <div className="flex justify-center">
+          <button 
+            onClick={() => setVisibleCount(prev => prev + 8)}
+            className="px-6 py-3 bg-gray-100 text-gray-700 rounded-xl font-medium hover:bg-gray-200 transition-all"
+          >
+            Load More
+          </button>
+        </div>
+      )}
+      
+      {/* Preview Modal */}
+      <AnimatePresence>
+        {previewTemplate && (
+          <TemplatePreview 
+            template={previewTemplate} 
+            onClose={() => setPreviewTemplate(null)} 
+          />
+        )}
+      </AnimatePresence>
+      
       {/* Delete Confirmation Modal */}
       <AnimatePresence>
         {deleteConfirmId && (
