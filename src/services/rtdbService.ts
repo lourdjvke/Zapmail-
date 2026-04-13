@@ -4,18 +4,17 @@ export async function fetchEmailsFromRTDB(config: {
   subfolders: string[];
   explore: boolean;
   fieldName: string;
-}): Promise<string[]> {
+  nameFieldName?: string;
+}): Promise<Array<{ email: string; name?: string }>> {
   if (!config.url) {
     throw new Error("RTDB URL is required");
   }
 
   let baseUrl = config.url.trim();
-  // Remove trailing slash if present
   if (baseUrl.endsWith('/')) {
     baseUrl = baseUrl.slice(0, -1);
   }
   
-  // Ensure it has https://
   if (!baseUrl.startsWith('http')) {
     baseUrl = `https://${baseUrl}`;
   }
@@ -24,12 +23,11 @@ export async function fetchEmailsFromRTDB(config: {
   const subPath = (config.subfolders || []).map(s => s.trim().replace(/^\/+|\/+$/g, '')).filter(Boolean).join('/');
   const path = subPath ? `${basePath}/${subPath}` : basePath;
   
-  // Construct REST API URL
   const fetchUrl = `${baseUrl}/${path}.json`;
 
   try {
     const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), 15000); // 15 seconds timeout
+    const timeoutId = setTimeout(() => controller.abort(), 15000);
 
     const response = await fetch(fetchUrl, { signal: controller.signal });
     clearTimeout(timeoutId);
@@ -47,63 +45,84 @@ export async function fetchEmailsFromRTDB(config: {
       throw new Error(`No data found at path: ${path}`);
     }
 
-    let emails: string[] = [];
+    let results: Array<{ email: string; name?: string }> = [];
     const emailRegex = /^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$/;
-    const isValidEmail = (val: any): val is string => typeof val === 'string' && emailRegex.test(val.trim());
+    const MAX_RESULTS = 5000;
+    const MAX_DEPTH = 20;
 
-    const addIfValid = (val: any) => {
-      if (isValidEmail(val)) {
-        emails.push(val.trim());
-      } else if (typeof val === 'string') {
-        // Try to extract email from string if it contains one
-        const matches = val.match(/[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}/g);
-        if (matches) {
-          matches.forEach(m => emails.push(m));
+    const processNode = (obj: any) => {
+      if (results.length >= MAX_RESULTS) return;
+      if (typeof obj !== 'object' || obj === null) return;
+
+      const emailVal = obj[config.fieldName];
+      const nameVal = config.nameFieldName ? obj[config.nameFieldName] : undefined;
+
+      if (emailVal) {
+        const name = typeof nameVal === 'string' ? nameVal.trim() : undefined;
+        
+        if (Array.isArray(emailVal)) {
+          emailVal.forEach(e => {
+            if (results.length < MAX_RESULTS && typeof e === 'string' && emailRegex.test(e.trim())) {
+              results.push({ email: e.trim().toLowerCase() });
+            }
+          });
+        } else if (typeof emailVal === 'string' && emailRegex.test(emailVal.trim())) {
+          // Check for multiple emails in this node for "disciplined" logic
+          let hasMultipleEmails = false;
+          if (name) {
+            let emailCount = 0;
+            for (const k in obj) {
+              const v = obj[k];
+              if (typeof v === 'string' && emailRegex.test(v.trim())) {
+                emailCount++;
+                if (emailCount > 1) {
+                  hasMultipleEmails = true;
+                  break;
+                }
+              }
+            }
+          }
+
+          results.push({ 
+            email: emailVal.trim().toLowerCase(), 
+            name: hasMultipleEmails ? undefined : name 
+          });
         }
       }
     };
 
     if (config.explore) {
-      // Recursive exploration
-      const exploreData = (obj: any) => {
+      const exploreData = (obj: any, depth: number = 0) => {
+        if (results.length >= MAX_RESULTS || depth > MAX_DEPTH) return;
         if (typeof obj === 'object' && obj !== null) {
-          // Check if the current object has the target field
-          if (obj.hasOwnProperty(config.fieldName)) {
-            const val = obj[config.fieldName];
-            if (Array.isArray(val)) {
-              val.forEach(addIfValid);
-            } else {
-              addIfValid(val);
-            }
+          processNode(obj);
+          for (const key in obj) {
+            exploreData(obj[key], depth + 1);
           }
-          // Continue exploring all values
-          Object.values(obj).forEach(exploreData);
         }
       };
       exploreData(data);
     } else {
-      // Direct extraction
       if (Array.isArray(data)) {
-        data.forEach(item => {
-          if (item && typeof item === 'object' && item[config.fieldName]) {
-            addIfValid(item[config.fieldName]);
-          }
-        });
+        data.forEach(processNode);
       } else if (typeof data === 'object' && data !== null) {
-        Object.values(data).forEach((item: any) => {
-          if (item && typeof item === 'object' && item[config.fieldName]) {
-            addIfValid(item[config.fieldName]);
-          }
-        });
+        for (const key in data) {
+          processNode(data[key]);
+        }
       }
     }
     
-    const uniqueEmails = [...new Set(emails)];
-    if (uniqueEmails.length === 0) {
+    // Deduplicate by email
+    const seen = new Set();
+    const uniqueResults = results.filter(item => {
+      return seen.has(item.email) ? false : seen.add(item.email);
+    });
+
+    if (uniqueResults.length === 0) {
       throw new Error(`No valid emails found for field "${config.fieldName}".`);
     }
 
-    return uniqueEmails;
+    return uniqueResults;
   } catch (error: any) {
     if (error.name === 'AbortError') {
       throw new Error("Connection timed out. The database might be too large or unreachable.");

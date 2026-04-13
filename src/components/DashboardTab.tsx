@@ -1,7 +1,7 @@
 import React, { useState, useRef, useMemo } from "react";
 import { motion, AnimatePresence } from "motion/react";
-import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, Cell } from "recharts";
-import { ChevronDown, Plus, MoreHorizontal, X, Upload, Users, Save, Search, Edit3, RefreshCw } from "lucide-react";
+import { AreaChart, Area, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid, Brush } from "recharts";
+import { ChevronDown, Plus, MoreHorizontal, X, Upload, Users, Save, Search, Edit3, RefreshCw, Trash2 } from "lucide-react";
 import { useFirebaseData, useAuth, BroadcastList, Lead, EmailJob } from "../lib/store";
 import { fetchEmailsFromRTDB } from "../services/rtdbService";
 
@@ -44,34 +44,60 @@ function FilterDropdown({ label, options, badge }: { label: string, options: str
 
 export function DashboardTab({ onNavigate }: { onNavigate: (tab: string) => void }) {
   const { data: broadcastLists, addItem: addBroadcastList, removeItem: removeBroadcastList, updateItem: updateBroadcastList } = useFirebaseData<BroadcastList[]>('broadcast_lists', []);
-  const { data: leads } = useFirebaseData<Lead[]>('leads', []);
+  const { data: leads, addItem: addLead } = useFirebaseData<Lead[]>('leads', []);
   const { data: jobs } = useFirebaseData<EmailJob[]>('outgoing_emails', []);
   const { user } = useAuth();
   
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
+  const [viewingListContacts, setViewingListContacts] = useState<BroadcastList | null>(null);
+  const [contactSearch, setContactSearch] = useState("");
   const [editingList, setEditingList] = useState<BroadcastList | null>(null);
   const [listName, setListName] = useState("");
   const [addTab, setAddTab] = useState<"smart" | "manual" | "select" | "rtdb">("smart");
   
   const totalSent = useMemo(() => jobs.reduce((acc, job) => acc + (job.sent || 0), 0), [jobs]);
   const totalFailed = useMemo(() => jobs.reduce((acc, job) => acc + (job.failed || 0), 0), [jobs]);
+
+  const monthlySent = useMemo(() => {
+    const now = new Date();
+    const currentMonth = now.getMonth();
+    const currentYear = now.getFullYear();
+    return jobs.reduce((acc, job) => {
+      const date = new Date(job.lastUpdated || 0);
+      if (date.getMonth() === currentMonth && date.getFullYear() === currentYear) {
+        return acc + (job.sent || 0);
+      }
+      return acc;
+    }, 0);
+  }, [jobs]);
   
   const vitalsStats = [
     { label: "AI usage", value: "84%", percent: "High" },
-    { label: "Sent", value: totalSent.toLocaleString(), percent: "Total" },
+    { label: "Sent", value: monthlySent.toLocaleString(), percent: "This Month" },
     { label: "Failed", value: totalFailed.toLocaleString(), percent: "Total" },
     { label: "Contacts", value: leads.length.toLocaleString(), percent: "Total" },
   ];
 
   const emailData = useMemo(() => {
-    // Group jobs by month for the chart
-    const months = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
-    const data = months.map(m => ({ name: m, value: 0 }));
+    const now = new Date();
+    const currentMonth = now.getMonth();
+    const currentYear = now.getFullYear();
+    const currentDay = now.getDate();
+
+    // Create array for all days in month up to today
+    const data = [];
+    for (let i = 1; i <= currentDay; i++) {
+      data.push({ name: i.toString(), value: 0 });
+    }
     
     jobs.forEach(job => {
       const date = new Date(job.lastUpdated || 0);
-      const monthIndex = date.getMonth();
-      data[monthIndex].value += (job.sent || 0);
+      if (date.getMonth() === currentMonth && date.getFullYear() === currentYear) {
+        const day = date.getDate();
+        if (day <= currentDay) {
+          data[day - 1].value += (job.sent || 0);
+        }
+      }
     });
     
     return data;
@@ -94,6 +120,7 @@ export function DashboardTab({ onNavigate }: { onNavigate: (tab: string) => void
   const [rtdbSubfolders, setRtdbSubfolders] = useState<string[]>([]);
   const [rtdbExplore, setRtdbExplore] = useState(false);
   const [rtdbFieldName, setRtdbFieldName] = useState("email");
+  const [rtdbNameFieldName, setRtdbNameFieldName] = useState("");
   const [showSubfolderInput, setShowSubfolderInput] = useState(false);
   const [isRtdbRunning, setIsRtdbRunning] = useState(false);
   const [rtdbResult, setRtdbResult] = useState<{count: number, error?: string} | null>(null);
@@ -194,12 +221,13 @@ export function DashboardTab({ onNavigate }: { onNavigate: (tab: string) => void
         name: listName,
         emails: finalEmails,
         rtdbConfig: addTab === "rtdb" ? {
-          url: rtdbUrl,
-          folder: rtdbFolder,
-          subfolders: rtdbSubfolders,
-          explore: rtdbExplore,
-          fieldName: rtdbFieldName
-        } : undefined
+          url: rtdbUrl || "",
+          folder: rtdbFolder || "",
+          subfolders: rtdbSubfolders || [],
+          explore: !!rtdbExplore,
+          fieldName: rtdbFieldName || "email",
+          nameFieldName: rtdbNameFieldName || ""
+        } : null
       });
       setEditingList(null);
     } else {
@@ -208,11 +236,12 @@ export function DashboardTab({ onNavigate }: { onNavigate: (tab: string) => void
         name: listName,
         emails: finalEmails,
         rtdbConfig: addTab === "rtdb" ? {
-          url: rtdbUrl,
-          folder: rtdbFolder,
-          subfolders: rtdbSubfolders,
-          explore: rtdbExplore,
-          fieldName: rtdbFieldName
+          url: rtdbUrl || "",
+          folder: rtdbFolder || "",
+          subfolders: rtdbSubfolders || [],
+          explore: !!rtdbExplore,
+          fieldName: rtdbFieldName || "email",
+          nameFieldName: rtdbNameFieldName || ""
         } : undefined
       };
       await addBroadcastList(newList);
@@ -226,6 +255,7 @@ export function DashboardTab({ onNavigate }: { onNavigate: (tab: string) => void
     setRtdbSubfolders([]);
     setRtdbExplore(false);
     setRtdbFieldName("email");
+    setRtdbNameFieldName("");
     setIsAddModalOpen(false);
   };
 
@@ -323,27 +353,71 @@ export function DashboardTab({ onNavigate }: { onNavigate: (tab: string) => void
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mt-8">
         {/* Emails Sent Chart */}
         <div className="bg-white rounded-2xl p-6 shadow-sm border border-gray-100">
+          <style>{`
+            .recharts-wrapper:focus, .recharts-surface:focus, .recharts-brush:focus {
+              outline: none !important;
+            }
+          `}</style>
           <div className="flex items-center justify-between mb-6">
             <div>
               <h3 className="text-gray-900 font-semibold text-lg">Emails sent</h3>
-              <div className="text-3xl font-bold mt-1">{totalSent.toLocaleString()}</div>
+              <div className="text-3xl font-bold mt-1">{monthlySent.toLocaleString()}</div>
             </div>
             <div className="flex items-center gap-2 text-sm">
               <span className="text-gray-500">Filter:</span>
-              <span className="bg-emerald-500 text-white px-3 py-1 rounded-full text-xs font-medium">Campaign 1</span>
+              <span className="bg-emerald-500 text-white px-3 py-1 rounded-full text-xs font-medium">This Month</span>
             </div>
           </div>
-          <div className="h-48 w-full">
+          <div className="h-64 w-full">
             <ResponsiveContainer width="100%" height="100%">
-              <BarChart data={emailData} margin={{ top: 0, right: 0, left: -20, bottom: 0 }}>
-                <XAxis dataKey="name" axisLine={false} tickLine={false} tick={{ fontSize: 12, fill: '#94a3b8' }} dy={10} />
-                <Tooltip cursor={{ fill: '#f1f5f9' }} contentStyle={{ borderRadius: '8px', border: 'none', boxShadow: '0 4px 6px -1px rgb(0 0 0 / 0.1)' }} />
-                <Bar dataKey="value" radius={[4, 4, 4, 4]}>
-                  {emailData.map((entry, index) => (
-                    <Cell key={`cell-${index}`} fill={entry.value > 600 ? '#10b981' : '#34d399'} />
-                  ))}
-                </Bar>
-              </BarChart>
+              <AreaChart 
+                data={emailData} 
+                margin={{ top: 10, right: 10, left: -20, bottom: 0 }}
+                style={{ outline: 'none' }}
+              >
+                <defs>
+                  <linearGradient id="colorValue" x1="0" y1="0" x2="0" y2="1">
+                    <stop offset="5%" stopColor="#10b981" stopOpacity={0.3}/>
+                    <stop offset="95%" stopColor="#10b981" stopOpacity={0}/>
+                  </linearGradient>
+                </defs>
+                <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" />
+                <XAxis 
+                  dataKey="name" 
+                  axisLine={false} 
+                  tickLine={false} 
+                  tick={{ fontSize: 10, fill: '#94a3b8' }} 
+                  dy={10}
+                  interval={Math.floor(emailData.length / 7)}
+                />
+                <YAxis hide />
+                <Tooltip 
+                  contentStyle={{ 
+                    borderRadius: '12px', 
+                    border: 'none', 
+                    boxShadow: '0 10px 15px -3px rgb(0 0 0 / 0.1)',
+                    fontSize: '12px'
+                  }} 
+                  labelFormatter={(label) => `Day ${label}`}
+                />
+                <Area 
+                  type="monotone" 
+                  dataKey="value" 
+                  stroke="#10b981" 
+                  strokeWidth={3}
+                  fillOpacity={1} 
+                  fill="url(#colorValue)" 
+                  animationDuration={1000}
+                />
+                <Brush 
+                  dataKey="name" 
+                  height={30} 
+                  stroke="#10b981" 
+                  fill="#f8fafc"
+                  gap={1}
+                  travellerWidth={10}
+                />
+              </AreaChart>
             </ResponsiveContainer>
           </div>
         </div>
@@ -402,15 +476,22 @@ export function DashboardTab({ onNavigate }: { onNavigate: (tab: string) => void
                   </div>
                   <div className="flex items-center gap-2">
                     <button className="text-gray-400 hover:text-emerald-500 transition-colors" onClick={() => {
+                      setViewingListContacts(list);
+                      setContactSearch("");
+                    }}>
+                      <Users className="w-4 h-4" />
+                    </button>
+                    <button className="text-gray-400 hover:text-emerald-500 transition-colors" onClick={() => {
                       setEditingList(list);
                       setListName(list.name);
                       setSmartEmails(list.emails);
                       if (list.rtdbConfig) {
                         setRtdbUrl(list.rtdbConfig.url);
                         setRtdbFolder(list.rtdbConfig.folder);
-                        setRtdbSubfolders(list.rtdbConfig.subfolders);
+                        setRtdbSubfolders(list.rtdbConfig.subfolders || []);
                         setRtdbExplore(list.rtdbConfig.explore);
                         setRtdbFieldName(list.rtdbConfig.fieldName);
+                        setRtdbNameFieldName(list.rtdbConfig.nameFieldName || "");
                         setAddTab("rtdb");
                       }
                       setIsAddModalOpen(true);
@@ -420,9 +501,22 @@ export function DashboardTab({ onNavigate }: { onNavigate: (tab: string) => void
                     {list.rtdbConfig && (
                       <button className="text-gray-400 hover:text-emerald-500 transition-colors" onClick={async () => {
                         if (list.rtdbConfig) {
-                          const newEmails = await fetchEmailsFromRTDB(list.rtdbConfig);
+                          const results = await fetchEmailsFromRTDB(list.rtdbConfig);
+                          const newEmails = results.map(r => r.email);
                           const updatedEmails = [...new Set([...list.emails, ...newEmails])];
                           await updateBroadcastList(list.id, { emails: updatedEmails });
+                          
+                          // Add to leads
+                          for (const res of results) {
+                            if (!leads.some(l => l.email.toLowerCase() === res.email.toLowerCase())) {
+                              await addLead({
+                                name: res.name || res.email.split('@')[0],
+                                email: res.email,
+                                created: new Date().toISOString()
+                              });
+                            }
+                          }
+                          
                           alert(`Found ${newEmails.length - (list.emails.length - list.emails.filter(e => !newEmails.includes(e)).length)} new emails.`);
                         }
                       }}>
@@ -626,27 +720,56 @@ export function DashboardTab({ onNavigate }: { onNavigate: (tab: string) => void
                         }} />
                       )}
                       
-                      <div className="flex items-center gap-2">
-                        <input type="checkbox" checked={rtdbExplore} onChange={e => setRtdbExplore(e.target.checked)} />
-                        <span className="text-sm text-gray-600">Enable Exploration</span>
-                      </div>
-                      <input type="text" value={rtdbFieldName} onChange={e => setRtdbFieldName(e.target.value)} placeholder="Field Name (e.g., email)" className="w-full bg-gray-50 border border-gray-200 rounded-lg p-2 text-sm" />
-                      
-                      <button 
-                        disabled={isRtdbRunning || !rtdbUrl || !rtdbFolder}
-                        onClick={async () => {
-                          setIsRtdbRunning(true);
-                          setRtdbResult(null);
-                          try {
-                            const emails = await fetchEmailsFromRTDB({ url: rtdbUrl, folder: rtdbFolder, subfolders: rtdbSubfolders, explore: rtdbExplore, fieldName: rtdbFieldName });
-                            setSmartEmails(prev => [...new Set([...prev, ...emails])]);
-                            setRtdbResult({ count: emails.length });
-                          } catch (error: any) {
-                            setRtdbResult({ count: 0, error: error.message });
-                          } finally {
-                            setIsRtdbRunning(false);
-                          }
-                        }} 
+                        <div className="flex items-center gap-2">
+                          <input type="checkbox" checked={rtdbExplore} onChange={e => setRtdbExplore(e.target.checked)} />
+                          <span className="text-sm text-gray-600">Enable Exploration</span>
+                        </div>
+                        <div className="grid grid-cols-2 gap-3">
+                          <div>
+                            <label className="block text-[10px] font-medium text-gray-400 uppercase mb-1">Email Field</label>
+                            <input type="text" value={rtdbFieldName} onChange={e => setRtdbFieldName(e.target.value)} placeholder="e.g. email" className="w-full bg-gray-50 border border-gray-200 rounded-lg p-2 text-sm" />
+                          </div>
+                          <div>
+                            <label className="block text-[10px] font-medium text-gray-400 uppercase mb-1">Name Field (Optional)</label>
+                            <input type="text" value={rtdbNameFieldName} onChange={e => setRtdbNameFieldName(e.target.value)} placeholder="e.g. fullName" className="w-full bg-gray-50 border border-gray-200 rounded-lg p-2 text-sm" />
+                          </div>
+                        </div>
+                        
+                        <button 
+                          disabled={isRtdbRunning || !rtdbUrl || !rtdbFolder}
+                          onClick={async () => {
+                            setIsRtdbRunning(true);
+                            setRtdbResult(null);
+                            try {
+                              const results = await fetchEmailsFromRTDB({ 
+                                url: rtdbUrl, 
+                                folder: rtdbFolder, 
+                                subfolders: rtdbSubfolders, 
+                                explore: rtdbExplore, 
+                                fieldName: rtdbFieldName,
+                                nameFieldName: rtdbNameFieldName
+                              });
+                              const emails = results.map(r => r.email);
+                              setSmartEmails(prev => [...new Set([...prev, ...emails])]);
+                              
+                              // Add to leads
+                              for (const res of results) {
+                                if (!leads.some(l => l.email.toLowerCase() === res.email.toLowerCase())) {
+                                  await addLead({
+                                    name: res.name || res.email.split('@')[0],
+                                    email: res.email,
+                                    created: new Date().toISOString()
+                                  });
+                                }
+                              }
+                              
+                              setRtdbResult({ count: emails.length });
+                            } catch (error: any) {
+                              setRtdbResult({ count: 0, error: error.message });
+                            } finally {
+                              setIsRtdbRunning(false);
+                            }
+                          }} 
                         className="w-full bg-emerald-600 hover:bg-emerald-700 disabled:opacity-50 text-white p-2 rounded-lg font-medium transition-colors flex items-center justify-center gap-2"
                       >
                         {isRtdbRunning ? <><RefreshCw className="w-4 h-4 animate-spin" /> Extracting...</> : 'Run Extraction'}
@@ -680,6 +803,101 @@ export function DashboardTab({ onNavigate }: { onNavigate: (tab: string) => void
                   >
                     <Save className="w-4 h-4" /> Save List
                   </button>
+                </div>
+              </div>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
+
+      {/* View Contacts Modal */}
+      <AnimatePresence>
+        {viewingListContacts && (
+          <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center sm:p-4">
+            <motion.div 
+              initial={{ opacity: 0 }} 
+              animate={{ opacity: 1 }} 
+              exit={{ opacity: 0 }} 
+              className="absolute inset-0 bg-black/40 backdrop-blur-sm"
+              onClick={() => setViewingListContacts(null)}
+            />
+            <motion.div 
+              initial={{ opacity: 0, y: "100%" }} 
+              animate={{ opacity: 1, y: 0 }} 
+              exit={{ opacity: 0, y: "100%" }} 
+              className="relative bg-white rounded-t-2xl sm:rounded-2xl shadow-xl w-full max-w-2xl overflow-hidden flex flex-col max-h-[85vh]"
+            >
+              <div className="p-4 sm:p-6 border-b border-gray-100 bg-white sticky top-0 z-10">
+                <div className="flex items-center justify-between mb-4">
+                  <div>
+                    <h2 className="text-xl font-semibold text-gray-900">{viewingListContacts.name}</h2>
+                    <p className="text-xs text-gray-500">{viewingListContacts.emails.length} contacts total</p>
+                  </div>
+                  <button onClick={() => setViewingListContacts(null)} className="text-gray-400 hover:text-gray-600 transition-colors bg-gray-50 hover:bg-gray-100 p-1.5 rounded-lg">
+                    <X className="w-5 h-5" />
+                  </button>
+                </div>
+                <div className="relative">
+                  <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
+                  <input 
+                    type="text"
+                    value={contactSearch}
+                    onChange={(e) => setContactSearch(e.target.value)}
+                    placeholder="Search contacts by name or email..."
+                    className="w-full pl-9 pr-4 py-2.5 bg-gray-50 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 transition-all"
+                  />
+                </div>
+              </div>
+              
+              <div className="flex-1 overflow-y-auto p-4 sm:p-6 bg-gray-50/30">
+                <div className="space-y-3">
+                  {viewingListContacts.emails
+                    .filter(email => {
+                      const lead = leads.find(l => l.email.toLowerCase() === email.toLowerCase());
+                      const search = contactSearch.toLowerCase();
+                      return email.toLowerCase().includes(search) || (lead?.name || "").toLowerCase().includes(search);
+                    })
+                    .map(email => {
+                      const lead = leads.find(l => l.email.toLowerCase() === email.toLowerCase());
+                      return (
+                        <div key={email} className="flex items-center justify-between p-3.5 bg-white rounded-2xl border border-gray-100 shadow-sm group hover:border-emerald-200 transition-all">
+                          <div className="flex items-center gap-4 min-w-0">
+                            <div className="w-10 h-10 rounded-full bg-emerald-50 text-emerald-600 flex items-center justify-center text-sm font-bold shrink-0 border border-emerald-100">
+                              {(lead?.name || email)[0].toUpperCase()}
+                            </div>
+                            <div className="min-w-0">
+                              <div className="text-sm font-semibold text-gray-900 truncate">
+                                {lead?.name || <span className="text-gray-400 font-normal italic">Name: ----</span>}
+                              </div>
+                              <div className="text-xs text-gray-500 truncate">{email}</div>
+                            </div>
+                          </div>
+                          <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                            <button 
+                              onClick={async () => {
+                                const updatedEmails = viewingListContacts.emails.filter(e => e !== email);
+                                await updateBroadcastList(viewingListContacts.id, { emails: updatedEmails });
+                                setViewingListContacts({ ...viewingListContacts, emails: updatedEmails });
+                              }}
+                              className="p-2 text-gray-400 hover:text-red-500 hover:bg-red-50 rounded-xl transition-all"
+                              title="Remove from list"
+                            >
+                              <Trash2 className="w-4 h-4" />
+                            </button>
+                          </div>
+                        </div>
+                      );
+                    })}
+                  
+                  {viewingListContacts.emails.length === 0 && (
+                    <div className="text-center py-16">
+                      <div className="w-16 h-16 bg-gray-100 rounded-full flex items-center justify-center mx-auto mb-4">
+                        <Users className="w-8 h-8 text-gray-400" />
+                      </div>
+                      <h3 className="text-gray-900 font-medium">No contacts found</h3>
+                      <p className="text-sm text-gray-500 mt-1">This broadcast list is currently empty.</p>
+                    </div>
+                  )}
                 </div>
               </div>
             </motion.div>

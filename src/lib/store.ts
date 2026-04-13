@@ -145,6 +145,7 @@ export interface BroadcastList {
     subfolders: string[];
     explore: boolean;
     fieldName: string;
+    nameFieldName?: string;
   };
 }
 
