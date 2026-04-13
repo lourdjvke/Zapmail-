@@ -3,19 +3,32 @@ import { ref, onValue, set, push, remove, update } from 'firebase/database';
 import { db, auth } from './firebase';
 import { onAuthStateChanged, User } from 'firebase/auth';
 
+let globalUser: User | null = auth.currentUser;
+let globalLoading = !auth.currentUser;
+const listeners = new Set<(data: { user: User | null, loading: boolean }) => void>();
+
+onAuthStateChanged(auth, (user) => {
+  globalUser = user;
+  globalLoading = false;
+  listeners.forEach(l => l({ user, loading: false }));
+});
+
 export function useAuth() {
-  const [user, setUser] = useState<User | null>(auth.currentUser);
-  const [loading, setLoading] = useState(!auth.currentUser);
+  const [state, setState] = useState({ user: globalUser, loading: globalLoading });
 
   useEffect(() => {
-    const unsubscribe = onAuthStateChanged(auth, (user) => {
-      setUser(user);
-      setLoading(false);
-    });
-    return unsubscribe;
+    const listener = (data: { user: User | null, loading: boolean }) => setState(data);
+    listeners.add(listener);
+    // Sync in case it changed between initialization and effect
+    if (state.user !== globalUser || state.loading !== globalLoading) {
+      setState({ user: globalUser, loading: globalLoading });
+    }
+    return () => {
+      listeners.delete(listener);
+    };
   }, []);
 
-  return { user, loading };
+  return state;
 }
 
 export function useFirebaseData<T>(path: string, initialValue: T) {

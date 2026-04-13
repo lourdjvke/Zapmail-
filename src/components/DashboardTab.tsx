@@ -43,9 +43,9 @@ function FilterDropdown({ label, options, badge }: { label: string, options: str
 }
 
 export function DashboardTab({ onNavigate }: { onNavigate: (tab: string) => void }) {
-  const { data: broadcastLists, addItem: addBroadcastList, removeItem: removeBroadcastList, updateItem: updateBroadcastList } = useFirebaseData<BroadcastList[]>('broadcast_lists', []);
-  const { data: leads, addItem: addLead } = useFirebaseData<Lead[]>('leads', []);
-  const { data: jobs } = useFirebaseData<EmailJob[]>('outgoing_emails', []);
+  const { data: broadcastLists, addItem: addBroadcastList, removeItem: removeBroadcastList, updateItem: updateBroadcastList, loading: listsLoading } = useFirebaseData<BroadcastList[]>('broadcast_lists', []);
+  const { data: leads, addItem: addLead, loading: leadsLoading } = useFirebaseData<Lead[]>('leads', []);
+  const { data: jobs, loading: jobsLoading } = useFirebaseData<EmailJob[]>('outgoing_emails', []);
   const { user } = useAuth();
   
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
@@ -112,7 +112,6 @@ export function DashboardTab({ onNavigate }: { onNavigate: (tab: string) => void
   const [manualName, setManualName] = useState("");
   const [manualEmail, setManualEmail] = useState("");
 
-  // Select Contacts
   const [selectedLeadIds, setSelectedLeadIds] = useState<Set<string>>(new Set());
   const [leadSearch, setLeadSearch] = useState("");
   const [rtdbUrl, setRtdbUrl] = useState("");
@@ -124,6 +123,15 @@ export function DashboardTab({ onNavigate }: { onNavigate: (tab: string) => void
   const [showSubfolderInput, setShowSubfolderInput] = useState(false);
   const [isRtdbRunning, setIsRtdbRunning] = useState(false);
   const [rtdbResult, setRtdbResult] = useState<{count: number, error?: string} | null>(null);
+
+  if (listsLoading || leadsLoading || jobsLoading) {
+    return (
+      <div className="flex flex-col items-center justify-center h-96 gap-4">
+        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-emerald-500"></div>
+        <p className="text-gray-500 animate-pulse">Loading dashboard data...</p>
+      </div>
+    );
+  }
 
   const extractEmails = (text: string) => {
     const emailRegex = /[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}/g;

@@ -42,7 +42,7 @@ function FilterDropdown({ label, options, badge, onSelect }: { label: string, op
 }
 
 export function AnalyticsTab() {
-  const { data: jobs } = useFirebaseData<EmailJob[]>('outgoing_emails', []);
+  const { data: jobs, loading } = useFirebaseData<EmailJob[]>('outgoing_emails', []);
   const [period, setPeriod] = useState("This Year");
   const [filter, setFilter] = useState("All");
 
@@ -84,6 +84,16 @@ export function AnalyticsTab() {
     if (filter === "Ongoing") return jobs.filter(j => j.status !== 'done');
     return jobs;
   }, [jobs, filter]);
+
+  if (loading) {
+    return (
+      <div className="flex flex-col items-center justify-center h-96 gap-4">
+        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-emerald-500"></div>
+        <p className="text-gray-500 animate-pulse">Loading analytics...</p>
+      </div>
+    );
+  }
+
   return (
     <motion.div
       initial={{ opacity: 0, y: 20 }}

@@ -4,7 +4,16 @@ import { FileText, Trash2 } from "lucide-react";
 import { useFirebaseData, Draft } from "../lib/store";
 
 export function DraftsTab() {
-  const { data: drafts, removeItem } = useFirebaseData<Draft[]>('drafts', []);
+  const { data: drafts, removeItem, loading } = useFirebaseData<Draft[]>('drafts', []);
+
+  if (loading) {
+    return (
+      <div className="flex flex-col items-center justify-center h-96 gap-4">
+        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-emerald-500"></div>
+        <p className="text-gray-500 animate-pulse">Loading drafts...</p>
+      </div>
+    );
+  }
 
   return (
     <motion.div

@@ -19,45 +19,38 @@ import { GoogleAuthProvider, signInWithPopup, signOut } from "firebase/auth";
 
 type TabType = "Dashboard" | "Leads" | "Drafts" | "Analytics" | "Compose" | "Templates" | "Upgrade";
 
+const TABS: { id: TabType; icon: ReactNode }[] = [
+  { id: "Dashboard", icon: <LayoutDashboard className="w-4 h-4" /> },
+  { id: "Leads", icon: <Users className="w-4 h-4" /> },
+  { id: "Drafts", icon: <Layout className="w-4 h-4" /> },
+  { id: "Analytics", icon: <BarChart3 className="w-4 h-4" /> },
+  { id: "Templates", icon: <Layout className="w-4 h-4" /> },
+  { id: "Compose", icon: <Edit className="w-4 h-4" /> },
+  { id: "Upgrade", icon: <Zap className="w-4 h-4 text-amber-400" /> },
+];
+
 function AppContent() {
   const { user, loading: authLoading } = useAuth();
   const navigate = useNavigate();
   const location = useLocation();
   
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
-  const [isLoading, setIsLoading] = useState(true);
   const [composeInitialHtml, setComposeInitialHtml] = useState<string | null>(null);
   const [composeInitialTemplateId, setComposeInitialTemplateId] = useState<string | null>(null);
-
-  const tabs: { id: TabType; icon: ReactNode }[] = [
-    { id: "Dashboard", icon: <LayoutDashboard className="w-4 h-4" /> },
-    { id: "Leads", icon: <Users className="w-4 h-4" /> },
-    { id: "Drafts", icon: <Layout className="w-4 h-4" /> },
-    { id: "Analytics", icon: <BarChart3 className="w-4 h-4" /> },
-    { id: "Templates", icon: <Layout className="w-4 h-4" /> },
-    { id: "Compose", icon: <Edit className="w-4 h-4" /> },
-    { id: "Upgrade", icon: <Zap className="w-4 h-4 text-amber-400" /> },
-  ];
 
   // Map path to tab
   const activeTab = useMemo(() => {
     const path = location.pathname.substring(1).toLowerCase();
     if (!path || path === "") return "Dashboard";
-    const tab = tabs.find(t => t.id.toLowerCase() === path);
+    const tab = TABS.find(t => t.id.toLowerCase() === path);
     return tab ? tab.id : "Dashboard";
-  }, [location.pathname, tabs]);
+  }, [location.pathname]);
 
   const handleUseTemplate = (template: EmailTemplate) => {
     setComposeInitialHtml(template.html);
     setComposeInitialTemplateId(template.id);
     handleTabChange("Compose");
   };
-
-  useEffect(() => {
-    if (!authLoading) {
-      setIsLoading(false);
-    }
-  }, [authLoading]);
 
   const handleLogin = async () => {
     const provider = new GoogleAuthProvider();
@@ -97,12 +90,8 @@ function AppContent() {
   };
 
   const handleTabChange = (tab: TabType) => {
-    setIsLoading(true);
     navigate(`/${tab.toLowerCase()}`);
     setIsMobileMenuOpen(false);
-    setTimeout(() => {
-      setIsLoading(false);
-    }, 800);
   };
 
   if (authLoading) {
@@ -137,7 +126,7 @@ function AppContent() {
 
           {/* Desktop Navigation */}
           <div className="hidden md:flex items-center gap-1 bg-white p-1 rounded-full shadow-sm border border-gray-200">
-            {tabs.map((tab) => (
+            {TABS.map((tab) => (
               <button
                 key={tab.id}
                 onClick={() => handleTabChange(tab.id)}
@@ -189,7 +178,7 @@ function AppContent() {
               className="md:hidden bg-white shadow-lg rounded-2xl border border-gray-100 overflow-hidden mb-6"
             >
               <div className="p-2 flex flex-col gap-1">
-                {tabs.map((tab) => (
+                {TABS.map((tab) => (
                   <button
                     key={tab.id}
                     onClick={() => handleTabChange(tab.id)}
@@ -210,48 +199,26 @@ function AppContent() {
 
         {/* Main Content Area */}
         <main className="relative min-h-[600px]">
-          <AnimatePresence mode="wait">
-            {isLoading ? (
-              <motion.div
-                key="loader"
-                initial={{ opacity: 0 }}
-                animate={{ opacity: 1 }}
-                exit={{ opacity: 0 }}
-                className="absolute inset-0 flex items-center justify-center"
-              >
-                <Loader />
-              </motion.div>
-            ) : (
-              <motion.div
-                key={location.pathname}
-                initial={{ opacity: 0, y: 20 }}
-                animate={{ opacity: 1, y: 0 }}
-                exit={{ opacity: 0, y: -20 }}
-                transition={{ duration: 0.3 }}
-              >
-                <Routes>
-                  <Route path="/" element={<DashboardTab onNavigate={handleTabChange} />} />
-                  <Route path="/dashboard" element={<DashboardTab onNavigate={handleTabChange} />} />
-                  <Route path="/leads" element={<LeadsTab />} />
-                  <Route path="/drafts" element={<DraftsTab />} />
-                  <Route path="/analytics" element={<AnalyticsTab />} />
-                  <Route path="/templates" element={<TemplatesTab onUseTemplate={handleUseTemplate} />} />
-                  <Route path="/upgrade" element={<PricingTab />} />
-                  <Route path="/compose" element={
-                    <ComposeTab 
-                      initialHtml={composeInitialHtml} 
-                      initialTemplateId={composeInitialTemplateId}
-                      onHtmlUsed={() => {
-                        setComposeInitialHtml(null);
-                        setComposeInitialTemplateId(null);
-                      }} 
-                    />
-                  } />
-                  <Route path="*" element={<Navigate to="/" replace />} />
-                </Routes>
-              </motion.div>
-            )}
-          </AnimatePresence>
+          <Routes>
+            <Route path="/" element={<DashboardTab onNavigate={handleTabChange} />} />
+            <Route path="/dashboard" element={<DashboardTab onNavigate={handleTabChange} />} />
+            <Route path="/leads" element={<LeadsTab />} />
+            <Route path="/drafts" element={<DraftsTab />} />
+            <Route path="/analytics" element={<AnalyticsTab />} />
+            <Route path="/templates" element={<TemplatesTab onUseTemplate={handleUseTemplate} />} />
+            <Route path="/upgrade" element={<PricingTab />} />
+            <Route path="/compose" element={
+              <ComposeTab 
+                initialHtml={composeInitialHtml} 
+                initialTemplateId={composeInitialTemplateId}
+                onHtmlUsed={() => {
+                  setComposeInitialHtml(null);
+                  setComposeInitialTemplateId(null);
+                }} 
+              />
+            } />
+            <Route path="*" element={<Navigate to="/" replace />} />
+          </Routes>
         </main>
 
         {/* Footer */}
