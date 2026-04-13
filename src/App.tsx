@@ -1,6 +1,7 @@
-import { useState, useEffect, ReactNode } from "react";
+import { useState, useEffect, ReactNode, useMemo } from "react";
 import { motion, AnimatePresence } from "motion/react";
 import { Bell, Search, Menu, X, Globe, LayoutDashboard, Users, Megaphone, BarChart3, Edit, Layout, LogOut, Zap } from "lucide-react";
+import { BrowserRouter, Routes, Route, useNavigate, useLocation, Navigate } from "react-router-dom";
 import { DashboardTab } from "./components/DashboardTab";
 import { LeadsTab } from "./components/LeadsTab";
 import { CampaignTab } from "./components/CampaignTab";
@@ -9,6 +10,7 @@ import { ComposeTab } from "./components/ComposeTab";
 import { TemplatesTab } from "./components/TemplatesTab";
 import { DraftsTab } from "./components/DraftsTab";
 import { PricingTab } from "./components/PricingTab";
+import { PrivacyPolicy } from "./components/PrivacyPolicy";
 import { Loader } from "./components/Loader";
 import { AuthScreen } from "./components/AuthScreen";
 import { useAuth, EmailTemplate } from "./lib/store";
@@ -17,13 +19,39 @@ import { GoogleAuthProvider, signInWithPopup, signOut } from "firebase/auth";
 
 type TabType = "Dashboard" | "Leads" | "Drafts" | "Analytics" | "Compose" | "Templates" | "Upgrade";
 
-export default function App() {
+function AppContent() {
   const { user, loading: authLoading } = useAuth();
-  const [activeTab, setActiveTab] = useState<TabType>("Dashboard");
+  const navigate = useNavigate();
+  const location = useLocation();
+  
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
   const [composeInitialHtml, setComposeInitialHtml] = useState<string | null>(null);
   const [composeInitialTemplateId, setComposeInitialTemplateId] = useState<string | null>(null);
+
+  const tabs: { id: TabType; icon: ReactNode }[] = [
+    { id: "Dashboard", icon: <LayoutDashboard className="w-4 h-4" /> },
+    { id: "Leads", icon: <Users className="w-4 h-4" /> },
+    { id: "Drafts", icon: <Layout className="w-4 h-4" /> },
+    { id: "Analytics", icon: <BarChart3 className="w-4 h-4" /> },
+    { id: "Templates", icon: <Layout className="w-4 h-4" /> },
+    { id: "Compose", icon: <Edit className="w-4 h-4" /> },
+    { id: "Upgrade", icon: <Zap className="w-4 h-4 text-amber-400" /> },
+  ];
+
+  // Map path to tab
+  const activeTab = useMemo(() => {
+    const path = location.pathname.substring(1).toLowerCase();
+    if (!path || path === "") return "Dashboard";
+    const tab = tabs.find(t => t.id.toLowerCase() === path);
+    return tab ? tab.id : "Dashboard";
+  }, [location.pathname, tabs]);
+
+  const handleUseTemplate = (template: EmailTemplate) => {
+    setComposeInitialHtml(template.html);
+    setComposeInitialTemplateId(template.id);
+    handleTabChange("Compose");
+  };
 
   useEffect(() => {
     if (!authLoading) {
@@ -62,6 +90,7 @@ export default function App() {
   const handleLogout = async () => {
     try {
       await signOut(auth);
+      navigate("/");
     } catch (error) {
       console.error("Logout failed:", error);
     }
@@ -69,27 +98,11 @@ export default function App() {
 
   const handleTabChange = (tab: TabType) => {
     setIsLoading(true);
-    setActiveTab(tab);
+    navigate(`/${tab.toLowerCase()}`);
     setIsMobileMenuOpen(false);
     setTimeout(() => {
       setIsLoading(false);
     }, 800);
-  };
-
-  const tabs: { id: TabType; icon: ReactNode }[] = [
-    { id: "Dashboard", icon: <LayoutDashboard className="w-4 h-4" /> },
-    { id: "Leads", icon: <Users className="w-4 h-4" /> },
-    { id: "Drafts", icon: <Layout className="w-4 h-4" /> },
-    { id: "Analytics", icon: <BarChart3 className="w-4 h-4" /> },
-    { id: "Templates", icon: <Layout className="w-4 h-4" /> },
-    { id: "Compose", icon: <Edit className="w-4 h-4" /> },
-    { id: "Upgrade", icon: <Zap className="w-4 h-4 text-amber-400" /> },
-  ];
-
-  const handleUseTemplate = (template: EmailTemplate) => {
-    setComposeInitialHtml(template.html);
-    setComposeInitialTemplateId(template.id);
-    handleTabChange("Compose");
   };
 
   if (authLoading) {
@@ -98,6 +111,11 @@ export default function App() {
         <Loader />
       </div>
     );
+  }
+
+  // Public route for Privacy Policy
+  if (location.pathname === "/privacy") {
+    return <PrivacyPolicy />;
   }
 
   if (!user) {
@@ -110,7 +128,7 @@ export default function App() {
       <div className="relative z-10 max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pt-6 pb-12">
         {/* Navigation Bar */}
         <nav className="flex items-center justify-between mb-8 text-gray-900">
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-2 cursor-pointer" onClick={() => handleTabChange("Dashboard")}>
             <div className="w-8 h-8 bg-emerald-500 rounded-lg flex items-center justify-center font-bold text-white">
               Z
             </div>
@@ -205,34 +223,57 @@ export default function App() {
               </motion.div>
             ) : (
               <motion.div
-                key={activeTab}
+                key={location.pathname}
                 initial={{ opacity: 0, y: 20 }}
                 animate={{ opacity: 1, y: 0 }}
                 exit={{ opacity: 0, y: -20 }}
                 transition={{ duration: 0.3 }}
               >
-                {activeTab === "Dashboard" && <DashboardTab onNavigate={handleTabChange} />}
-                {activeTab === "Leads" && <LeadsTab />}
-                {activeTab === "Drafts" && <DraftsTab />}
-                {activeTab === "Analytics" && <AnalyticsTab />}
-                {activeTab === "Templates" && <TemplatesTab onUseTemplate={handleUseTemplate} />}
-                {activeTab === "Upgrade" && <PricingTab />}
-                {activeTab === "Compose" && (
-                  <ComposeTab 
-                    initialHtml={composeInitialHtml} 
-                    initialTemplateId={composeInitialTemplateId}
-                    onHtmlUsed={() => {
-                      setComposeInitialHtml(null);
-                      setComposeInitialTemplateId(null);
-                    }} 
-                  />
-                )}
+                <Routes>
+                  <Route path="/" element={<DashboardTab onNavigate={handleTabChange} />} />
+                  <Route path="/dashboard" element={<DashboardTab onNavigate={handleTabChange} />} />
+                  <Route path="/leads" element={<LeadsTab />} />
+                  <Route path="/drafts" element={<DraftsTab />} />
+                  <Route path="/analytics" element={<AnalyticsTab />} />
+                  <Route path="/templates" element={<TemplatesTab onUseTemplate={handleUseTemplate} />} />
+                  <Route path="/upgrade" element={<PricingTab />} />
+                  <Route path="/compose" element={
+                    <ComposeTab 
+                      initialHtml={composeInitialHtml} 
+                      initialTemplateId={composeInitialTemplateId}
+                      onHtmlUsed={() => {
+                        setComposeInitialHtml(null);
+                        setComposeInitialTemplateId(null);
+                      }} 
+                    />
+                  } />
+                  <Route path="*" element={<Navigate to="/" replace />} />
+                </Routes>
               </motion.div>
             )}
           </AnimatePresence>
         </main>
+
+        {/* Footer */}
+        <footer className="mt-12 pt-8 border-t border-gray-200 text-center">
+          <div className="flex flex-col items-center gap-4">
+            <div className="flex items-center gap-6 text-sm text-gray-500">
+              <button onClick={() => navigate("/privacy")} className="hover:text-emerald-600 transition-colors">Privacy Policy</button>
+              <span className="w-1 h-1 rounded-full bg-gray-300" />
+              <span>© {new Date().getFullYear()} Zapmail</span>
+            </div>
+          </div>
+        </footer>
       </div>
     </div>
+  );
+}
+
+export default function App() {
+  return (
+    <BrowserRouter>
+      <AppContent />
+    </BrowserRouter>
   );
 }
 
