@@ -70,7 +70,7 @@ export function LeadsTab() {
     const newLead = {
       name: manualName,
       email: manualEmail,
-      company: manualCompany || undefined,
+      company: manualCompany || "",
       created: new Date().toLocaleDateString(),
     };
     await addItem(newLead);
