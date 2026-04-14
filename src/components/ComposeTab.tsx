@@ -764,59 +764,55 @@ export function ComposeTab({ initialHtml, initialTemplateId, onHtmlUsed }: Compo
                   </button>
                 </div>
 
-                <div className="flex overflow-x-auto pb-2 gap-6 hide-scrollbar">
+                <div className="flex flex-col gap-2">
                   <button 
                     onClick={handleSendEmail}
-                    className="flex flex-col items-center gap-3 min-w-[80px] p-3 rounded-[8px] border border-emerald-100/50 hover:bg-emerald-50/30 transition-all group"
+                    className="flex items-center gap-3 w-full p-3 rounded-[8px] border border-emerald-100/50 hover:bg-emerald-50/30 transition-all group"
                   >
-                    <div className="w-10 h-10 flex items-center justify-center text-emerald-700 group-hover:scale-110 transition-transform">
-                      <Send className="w-6 h-6" />
+                    <div className="text-emerald-700">
+                      <Send className="w-4 h-4" />
                     </div>
-                    <span className="text-[11px] font-semibold text-emerald-900">Send Now</span>
+                    <span className="text-[13px] font-semibold text-emerald-900">Send Now</span>
                   </button>
 
                   <button 
                     onClick={() => setIsTestModalOpen(true)}
-                    className="flex flex-col items-center gap-3 min-w-[80px] p-3 rounded-[8px] border border-emerald-100/50 hover:bg-emerald-50/30 transition-all group"
+                    className="flex items-center gap-3 w-full p-3 rounded-[8px] border border-emerald-100/50 hover:bg-emerald-50/30 transition-all group"
                   >
-                    <div className="w-10 h-10 flex items-center justify-center text-emerald-700 group-hover:scale-110 transition-transform">
-                      <Eye className="w-6 h-6" />
+                    <div className="text-emerald-700">
+                      <Eye className="w-4 h-4" />
                     </div>
-                    <span className="text-[11px] font-semibold text-emerald-900">Send Test</span>
+                    <span className="text-[13px] font-semibold text-emerald-900">Send Test</span>
                   </button>
 
-                  <div className="flex flex-col items-center gap-3 min-w-[140px] p-3 rounded-[8px] border border-emerald-100/50 bg-transparent">
-                    <div className="w-full space-y-1">
-                      <div className="flex items-center gap-1.5">
-                        <Calendar className="w-4 h-4 text-emerald-700" />
-                        <label className="text-[10px] uppercase tracking-wider font-bold text-emerald-700">Schedule</label>
-                      </div>
-                      <input 
-                        type="datetime-local" 
-                        value={scheduledFor}
-                        onChange={(e) => setScheduledFor(e.target.value)}
-                        className="w-full bg-transparent text-[11px] text-emerald-900 outline-none font-medium"
-                      />
+                  <div className="flex items-center justify-between w-full p-3 rounded-[8px] border border-emerald-100/50 bg-transparent">
+                    <div className="flex items-center gap-3">
+                      <Calendar className="w-4 h-4 text-emerald-700" />
+                      <label className="text-[13px] font-semibold text-emerald-900">Schedule</label>
                     </div>
+                    <input 
+                      type="datetime-local" 
+                      value={scheduledFor}
+                      onChange={(e) => setScheduledFor(e.target.value)}
+                      className="bg-transparent text-[11px] text-emerald-900 outline-none font-medium text-right"
+                    />
                   </div>
 
-                  <div className="flex flex-col items-center gap-3 min-w-[120px] p-3 rounded-[8px] border border-emerald-100/50 bg-transparent">
-                    <div className="w-full space-y-1">
-                      <div className="flex items-center gap-1.5">
-                        <Repeat className="w-4 h-4 text-emerald-700" />
-                        <label className="text-[10px] uppercase tracking-wider font-bold text-emerald-700">Recurrence</label>
-                      </div>
-                      <select 
-                        value={recurrence}
-                        onChange={(e) => setRecurrence(e.target.value)}
-                        className="w-full bg-transparent text-[11px] text-emerald-900 outline-none appearance-none font-medium cursor-pointer"
-                      >
-                        <option value="none">None</option>
-                        <option value="daily">Daily</option>
-                        <option value="weekly">Weekly</option>
-                        <option value="monthly">Monthly</option>
-                      </select>
+                  <div className="flex items-center justify-between w-full p-3 rounded-[8px] border border-emerald-100/50 bg-transparent">
+                    <div className="flex items-center gap-3">
+                      <Repeat className="w-4 h-4 text-emerald-700" />
+                      <label className="text-[13px] font-semibold text-emerald-900">Recurrence</label>
                     </div>
+                    <select 
+                      value={recurrence}
+                      onChange={(e) => setRecurrence(e.target.value)}
+                      className="bg-transparent text-[11px] text-emerald-900 outline-none appearance-none font-medium cursor-pointer text-right"
+                    >
+                      <option value="none">None</option>
+                      <option value="daily">Daily</option>
+                      <option value="weekly">Weekly</option>
+                      <option value="monthly">Monthly</option>
+                    </select>
                   </div>
                 </div>
 
