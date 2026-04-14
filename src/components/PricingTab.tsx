@@ -38,6 +38,14 @@ export function PricingTab() {
   const { data: currentTier, saveData: setTier } = useFirebaseData<string>('tier', 'tier_1');
   const [isProcessing, setIsProcessing] = useState(false);
 
+  // Discount logic: valid until April 30th, 2026
+  const discountEndDate = new Date('2026-04-30T23:59:59');
+  const isDiscountActive = new Date() <= discountEndDate;
+
+  const getTierPrice = (baseAmount: number, discountedAmount: number) => {
+    return isDiscountActive ? discountedAmount : baseAmount;
+  };
+
   const handleUpgrade = (tier: string) => {
     setTier(tier);
     setIsProcessing(false);
@@ -68,7 +76,7 @@ export function PricingTab() {
       id: "tier_2",
       name: "Tier 2",
       subtitle: "Professional",
-      price: "7,000",
+      price: getTierPrice(7000, 5500).toLocaleString(),
       currency: "NGN",
       period: "per month",
       icon: <Shield className="w-6 h-6 text-blue-500" />,
@@ -85,13 +93,14 @@ export function PricingTab() {
       highlight: true,
       action: () => currentTier !== "tier_2" && (currentTier === "tier_3" ? setTier("tier_2") : null),
       isPayment: currentTier !== "tier_2" && currentTier !== "tier_3",
-      amount: 7000
+      amount: getTierPrice(7000, 5500),
+      originalAmount: 7000
     },
     {
       id: "tier_3",
       name: "Tier 3",
       subtitle: "Enterprise",
-      price: "12,000",
+      price: getTierPrice(12000, 10500).toLocaleString(),
       currency: "NGN",
       period: "per month",
       icon: <Crown className="w-6 h-6 text-amber-500" />,
@@ -109,7 +118,8 @@ export function PricingTab() {
       highlight: false,
       action: () => currentTier !== "tier_3" && null,
       isPayment: currentTier !== "tier_3",
-      amount: 12000
+      amount: getTierPrice(12000, 10500),
+      originalAmount: 12000
     }
   ];
 
@@ -153,11 +163,21 @@ export function PricingTab() {
             </div>
 
             <div className="mb-8">
-              <div className="flex items-baseline gap-1">
+              <div className="flex items-baseline gap-1 flex-wrap">
                 {tier.currency && <span className="text-lg font-semibold text-gray-900">{tier.currency}</span>}
+                {isDiscountActive && tier.originalAmount && (
+                  <span className="text-xl text-gray-400 line-through mr-1">
+                    {tier.originalAmount.toLocaleString()}
+                  </span>
+                )}
                 <span className="text-4xl font-bold text-gray-900">{tier.price}</span>
                 <span className="text-gray-500">/{tier.period}</span>
               </div>
+              {isDiscountActive && tier.originalAmount && (
+                <div className="text-xs font-bold text-emerald-600 mt-1 uppercase tracking-wider">
+                  Limited Time Offer - Ends April 30
+                </div>
+              )}
             </div>
 
             <div className="flex-1 space-y-4 mb-8">

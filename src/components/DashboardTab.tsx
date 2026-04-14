@@ -72,7 +72,7 @@ export function DashboardTab({ onNavigate }: { onNavigate: (tab: string) => void
   }, [jobs]);
   
   const vitalsStats = [
-    { label: "AI usage", value: "84%", percent: "High" },
+    { label: "AI usage", value: "N/A", percent: "-" },
     { label: "Sent", value: monthlySent.toLocaleString(), percent: "This Month" },
     { label: "Failed", value: totalFailed.toLocaleString(), percent: "Total" },
     { label: "Contacts", value: leads.length.toLocaleString(), percent: "Total" },

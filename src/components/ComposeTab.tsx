@@ -1,7 +1,7 @@
 import React, { useState, useRef, useEffect, useMemo } from "react";
 import { motion, AnimatePresence } from "motion/react";
 import { Upload, X, Send, Paperclip, Image as ImageIcon, Type, FileText, Users, ChevronDown, Eye, Layout, Edit3, Palette, Trash2, Link as LinkIcon, AlertTriangle, Check, Calendar, Repeat, Lock } from "lucide-react";
-import { useFirebaseData, useAuth, BroadcastList, EmailTemplate, EmailJob, Draft, Lead } from "../lib/store";
+import { useFirebaseData, useGlobalFirebaseData, useAuth, BroadcastList, EmailTemplate, EmailJob, Draft, Lead } from "../lib/store";
 import { fetchEmailsFromRTDB } from "../services/rtdbService";
 import { sanitizeHtml } from "../lib/utils";
 
@@ -355,19 +355,21 @@ export function ComposeTab({ initialHtml, initialTemplateId, onHtmlUsed }: Compo
     const finalHtml = composeType === "plain" ? content : htmlContent;
     if (!finalHtml.trim() || !templateName.trim()) return;
 
+    const templateData = {
+      name: templateName,
+      html: sanitizeHtml(finalHtml),
+      lastUpdated: new Date().toISOString(),
+      author: user?.displayName || user?.email || "Anonymous",
+      uid: user?.uid
+    };
+
     if (editingTemplateId) {
-      await updateTemplate(editingTemplateId, {
-        name: templateName,
-        html: sanitizeHtml(finalHtml),
-        lastUpdated: new Date().toISOString(),
-      });
+      await updateTemplate(editingTemplateId, templateData);
     } else {
-      const newTemplate = {
-        name: templateName,
-        html: sanitizeHtml(finalHtml),
+      await addTemplate({
+        ...templateData,
         created: new Date().toISOString(),
-      };
-      await addTemplate(newTemplate);
+      });
     }
 
     setIsSaveModalOpen(false);

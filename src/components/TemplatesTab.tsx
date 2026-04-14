@@ -1,7 +1,7 @@
 import React, { useState, useRef, useEffect, useMemo } from "react";
 import { motion, AnimatePresence } from "motion/react";
-import { Layout, Check, Trash2, Heart, Filter } from "lucide-react";
-import { useFirebaseData, useGlobalFirebaseData, EmailTemplate } from "../lib/store";
+import { Layout, Check, Trash2, Heart, Filter, Share2 } from "lucide-react";
+import { useFirebaseData, useAllUsersTemplates, EmailTemplate, useAuth } from "../lib/store";
 import { TemplatePreview } from "./TemplatePreview";
 
 interface TemplatesTabProps {
@@ -13,11 +13,13 @@ interface TemplateCardProps {
   onUse: (template: EmailTemplate) => void;
   onDelete?: (id: string) => void;
   onToggleFavorite?: (template: EmailTemplate) => void;
+  onShare?: (template: EmailTemplate) => void;
   onPreview: (template: EmailTemplate) => void;
   isGlobal?: boolean;
+  canShare?: boolean;
 }
 
-const TemplateCard: React.FC<TemplateCardProps> = ({ template, onUse, onDelete, onToggleFavorite, onPreview, isGlobal }) => {
+const TemplateCard: React.FC<TemplateCardProps> = ({ template, onUse, onDelete, onToggleFavorite, onShare, onPreview, isGlobal, canShare }) => {
   const iframeRef = useRef<HTMLIFrameElement>(null);
 
   useEffect(() => {
@@ -83,6 +85,16 @@ const TemplateCard: React.FC<TemplateCardProps> = ({ template, onUse, onDelete, 
             <Trash2 className="w-4 h-4" />
           </button>
         )}
+
+        {!isGlobal && canShare && onShare && (
+          <button 
+            onClick={(e) => { e.stopPropagation(); onShare(template); }}
+            className="absolute top-14 right-3 p-2 bg-white/90 backdrop-blur-sm text-emerald-600 rounded-xl opacity-0 group-hover:opacity-100 transition-all hover:bg-emerald-50 shadow-sm z-20"
+            title="Share to Community"
+          >
+            <Share2 className="w-4 h-4" />
+          </button>
+        )}
       </div>
 
       <div className="p-4 bg-white border-t border-gray-50">
@@ -99,14 +111,17 @@ const TemplateCard: React.FC<TemplateCardProps> = ({ template, onUse, onDelete, 
 }
 
 export function TemplatesTab({ onUseTemplate }: TemplatesTabProps) {
+  const { user } = useAuth();
   const { data: currentTier } = useFirebaseData<string>('tier', 'tier_1');
   const { data: myTemplates, removeItem, updateItem, loading: loadingMy } = useFirebaseData<EmailTemplate[]>('templates', []);
-  const { data: globalTemplates, loading: loadingGlobal } = useGlobalFirebaseData<EmailTemplate[]>('global_templates', []);
+  const { data: allUsersTemplates, loading: loadingAll } = useAllUsersTemplates();
   
   const [deleteConfirmId, setDeleteConfirmId] = useState<string | null>(null);
   const [previewTemplate, setPreviewTemplate] = useState<EmailTemplate | null>(null);
-  const [filter, setFilter] = useState<'All' | 'By me' | 'Saved' | 'Community'>('All');
+  const [filter, setFilter] = useState<'All' | 'By me' | 'Saved'>('All');
   const [visibleCount, setVisibleCount] = useState(8);
+
+  const isPremium = currentTier === 'tier_2' || currentTier === 'tier_3';
 
   const handleDeleteTemplate = async () => {
     if (!deleteConfirmId) return;
@@ -118,29 +133,25 @@ export function TemplatesTab({ onUseTemplate }: TemplatesTabProps) {
     await updateItem(template.id, { favorite: !template.favorite });
   };
 
-  const allTemplates = useMemo(() => {
-    const combined = [...myTemplates.map(t => ({ ...t, isGlobal: false }))];
-    if (currentTier === 'tier_2' || currentTier === 'tier_3') {
-      combined.push(...globalTemplates.map(t => ({ ...t, isGlobal: true })));
-    }
-    return combined;
-  }, [myTemplates, globalTemplates, currentTier]);
-
   const filteredTemplates = useMemo(() => {
-    let filtered = [...allTemplates];
+    // If premium, "All" includes everyone's templates from their private folders
+    // If Tier 1, "All" is just their own templates
+    let base = isPremium ? allUsersTemplates : myTemplates.map(t => ({ ...t, uid: user?.uid }));
+
+    let filtered = [...base];
+
     if (filter === 'Saved') {
-      filtered = filtered.filter(t => t.favorite && !t.isGlobal);
+      filtered = filtered.filter(t => t.favorite && t.uid === user?.uid);
     } else if (filter === 'By me') {
-      filtered = filtered.filter(t => !t.isGlobal);
-    } else if (filter === 'Community') {
-      filtered = filtered.filter(t => t.isGlobal);
+      filtered = filtered.filter(t => t.uid === user?.uid);
     }
+
     return filtered.sort((a, b) => new Date(b.created).getTime() - new Date(a.created).getTime());
-  }, [allTemplates, filter]);
+  }, [allUsersTemplates, myTemplates, filter, isPremium, user?.uid]);
 
   const displayedTemplates = filteredTemplates.slice(0, visibleCount);
 
-  if (loadingMy || (loadingGlobal && (currentTier === 'tier_2' || currentTier === 'tier_3'))) {
+  if (loadingMy || (isPremium && loadingAll)) {
     return (
       <div className="flex items-center justify-center h-64">
         <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-emerald-500"></div>
@@ -149,9 +160,6 @@ export function TemplatesTab({ onUseTemplate }: TemplatesTabProps) {
   }
 
   const filters = ['All', 'By me', 'Saved'];
-  if (currentTier === 'tier_2' || currentTier === 'tier_3') {
-    filters.push('Community');
-  }
 
   return (
     <div className="space-y-8 pb-12">
@@ -177,13 +185,13 @@ export function TemplatesTab({ onUseTemplate }: TemplatesTabProps) {
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
         {displayedTemplates.map(template => (
           <TemplateCard 
-            key={template.id + (template.isGlobal ? '_global' : '')} 
+            key={template.id} 
             template={template} 
             onUse={onUseTemplate}
-            onDelete={template.isGlobal ? undefined : (id) => setDeleteConfirmId(id)}
-            onToggleFavorite={template.isGlobal ? undefined : handleToggleFavorite}
+            onDelete={template.uid === user?.uid ? (id) => setDeleteConfirmId(id) : undefined}
+            onToggleFavorite={template.uid === user?.uid ? handleToggleFavorite : undefined}
             onPreview={() => setPreviewTemplate(template)}
-            isGlobal={template.isGlobal}
+            isGlobal={template.uid !== user?.uid}
           />
         ))}
       </div>

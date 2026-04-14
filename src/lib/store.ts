@@ -96,6 +96,41 @@ export function useFirebaseData<T>(path: string, initialValue: T) {
   return { data, saveData, addItem, removeItem, updateItem, loading };
 }
 
+export function useAllUsersTemplates() {
+  const [data, setData] = useState<EmailTemplate[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    const usersRef = ref(db, 'users');
+
+    const unsubscribe = onValue(usersRef, (snapshot) => {
+      const usersData = snapshot.val();
+      const allTemplates: EmailTemplate[] = [];
+
+      if (usersData) {
+        Object.entries(usersData).forEach(([uid, userData]: [string, any]) => {
+          if (userData.templates) {
+            Object.entries(userData.templates).forEach(([templateId, template]: [string, any]) => {
+              allTemplates.push({
+                ...template,
+                id: templateId,
+                uid: uid, // Track who owns it
+                author: template.author || userData.profile?.displayName || userData.profile?.email || "Anonymous"
+              });
+            });
+          }
+        });
+      }
+      setData(allTemplates);
+      setLoading(false);
+    });
+
+    return () => unsubscribe();
+  }, []);
+
+  return { data, loading };
+}
+
 export function useGlobalFirebaseData<T>(path: string, initialValue: T) {
   const [data, setData] = useState<T>(initialValue);
   const [loading, setLoading] = useState(true);
@@ -124,7 +159,23 @@ export function useGlobalFirebaseData<T>(path: string, initialValue: T) {
     return () => unsubscribe();
   }, [path]);
 
-  return { data, loading };
+  const addItem = async (item: any) => {
+    const dataRef = ref(db, path);
+    const newItemRef = push(dataRef);
+    await set(newItemRef, { ...item, id: newItemRef.key });
+  };
+
+  const removeItem = async (id: string) => {
+    const dataRef = ref(db, `${path}/${id}`);
+    await remove(dataRef);
+  };
+
+  const updateItem = async (id: string, updates: any) => {
+    const dataRef = ref(db, `${path}/${id}`);
+    await update(dataRef, updates);
+  };
+
+  return { data, addItem, removeItem, updateItem, loading };
 }
 
 export function useLocalStorage<T>(key: string, initialValue: T) {
@@ -199,6 +250,8 @@ export interface EmailTemplate {
   html: string;
   created: string;
   favorite?: boolean;
+  uid?: string;
+  author?: string;
 }
 
 export interface Draft {
