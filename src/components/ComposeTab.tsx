@@ -259,12 +259,26 @@ export function ComposeTab({ initialHtml, initialTemplateId, onHtmlUsed }: Compo
     return text.match(emailRegex) || [];
   };
 
+  const addEmails = (newEmails: string[]) => {
+    const currentCount = emails.length;
+    const canAddCount = Math.max(0, limits.maxRecipients - currentCount);
+    if (canAddCount <= 0) {
+      showNotification(`Upgrade for more recipients (Limit: ${limits.maxRecipients})`);
+      return;
+    }
+    const emailsToAdd = newEmails.slice(0, canAddCount);
+    setEmails(prev => [...new Set([...prev, ...emailsToAdd])]);
+    if (newEmails.length > canAddCount) {
+      showNotification(`Upgrade for more recipients (Limit: ${limits.maxRecipients})`);
+    }
+  };
+
   const handlePaste = (e: React.ClipboardEvent) => {
     e.preventDefault();
     const pastedText = e.clipboardData.getData("text");
     const newEmails = extractEmails(pastedText);
     if (newEmails.length > 0) {
-      setEmails(prev => [...new Set([...prev, ...newEmails])]);
+      addEmails(newEmails);
     } else {
       setInputValue(prev => prev + pastedText);
     }
@@ -275,7 +289,7 @@ export function ComposeTab({ initialHtml, initialTemplateId, onHtmlUsed }: Compo
     if (val.includes(",") || val.includes(" ")) {
       const newEmails = extractEmails(val);
       if (newEmails.length > 0) {
-        setEmails(prev => [...new Set([...prev, ...newEmails])]);
+        addEmails(newEmails);
         setInputValue("");
       } else {
         setInputValue(val.replace(/[, ]/g, ""));
@@ -290,9 +304,9 @@ export function ComposeTab({ initialHtml, initialTemplateId, onHtmlUsed }: Compo
       e.preventDefault();
       const newEmails = extractEmails(inputValue);
       if (newEmails.length > 0) {
-        setEmails(prev => [...new Set([...prev, ...newEmails])]);
+        addEmails(newEmails);
       } else if (inputValue.trim() && inputValue.includes("@")) {
-        setEmails(prev => [...new Set([...prev, inputValue.trim()])]);
+        addEmails([inputValue.trim()]);
       }
       setInputValue("");
     } else if (e.key === "Backspace" && !inputValue && emails.length > 0) {
@@ -307,7 +321,7 @@ export function ComposeTab({ initialHtml, initialTemplateId, onHtmlUsed }: Compo
       reader.onload = (event) => {
         const text = event.target?.result as string;
         const newEmails = extractEmails(text);
-        setEmails(prev => [...new Set([...prev, ...newEmails])]);
+        addEmails(newEmails);
       };
       reader.readAsText(file);
     }
@@ -331,7 +345,7 @@ export function ComposeTab({ initialHtml, initialTemplateId, onHtmlUsed }: Compo
       setBroadcastList("None");
     } else {
       setBroadcastList(list.name);
-      setEmails(prev => [...new Set([...prev, ...list.emails])]);
+      addEmails(list.emails);
     }
     setIsBroadcastOpen(false);
   };

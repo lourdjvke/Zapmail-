@@ -1,7 +1,7 @@
 import React, { useState, useRef, useMemo } from "react";
 import { motion, AnimatePresence } from "motion/react";
 import { AreaChart, Area, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid, Brush } from "recharts";
-import { ChevronDown, Plus, MoreHorizontal, X, Upload, Users, Save, Search, Edit3, RefreshCw, Trash2 } from "lucide-react";
+import { ChevronDown, Plus, MoreHorizontal, X, Upload, Users, Save, Search, Edit3, RefreshCw, Trash2, Lock } from "lucide-react";
 import { useFirebaseData, useAuth, BroadcastList, Lead, EmailJob } from "../lib/store";
 import { fetchEmailsFromRTDB } from "../services/rtdbService";
 
@@ -304,7 +304,7 @@ export function DashboardTab({ onNavigate }: { onNavigate: (tab: string) => void
           explore: !!rtdbExplore,
           fieldName: rtdbFieldName || "email",
           nameFieldName: rtdbNameFieldName || ""
-        } : undefined
+        } : null
       };
       await addBroadcastList(newList);
     }
@@ -672,10 +672,22 @@ export function DashboardTab({ onNavigate }: { onNavigate: (tab: string) => void
                       Select Contacts
                     </button>
                     <button 
-                      onClick={() => setAddTab("rtdb")}
-                      className={`flex-1 py-1.5 px-3 text-sm font-medium rounded-md transition-colors whitespace-nowrap ${addTab === "rtdb" ? "bg-white text-gray-900 shadow-sm" : "text-gray-500 hover:text-gray-700"}`}
+                      onClick={() => {
+                        if (currentTier === 'tier_1') {
+                          alert("Firebase RTDB extraction is only available on Tier 2 and Tier 3. Please upgrade.");
+                          return;
+                        }
+                        setAddTab("rtdb");
+                      }}
+                      className={`flex-1 py-1.5 px-3 text-sm font-medium rounded-md transition-colors whitespace-nowrap flex items-center justify-center gap-2 ${addTab === "rtdb" ? "bg-white text-gray-900 shadow-sm" : "text-gray-500 hover:text-gray-700"}`}
                     >
                       Firebase RTDB
+                      {currentTier === 'tier_1' && (
+                        <>
+                          <Lock className="w-3 h-3" />
+                          <span className="text-[10px] bg-orange-100 text-orange-700 px-1.5 rounded-full font-bold">Upgrade</span>
+                        </>
+                      )}
                     </button>
                   </div>
 
