@@ -25,6 +25,7 @@ export function ComposeTab({ initialHtml, initialTemplateId, onHtmlUsed }: Compo
   const [isTestModalOpen, setIsTestModalOpen] = useState(false);
   const [testEmail, setTestEmail] = useState('');
   const [showSaveSuccess, setShowSaveSuccess] = useState(false);
+  const [showDraftSaveSuccess, setShowDraftSaveSuccess] = useState(false);
   const [templateName, setTemplateName] = useState("");
   const [editingTemplateId, setEditingTemplateId] = useState<string | null>(null);
   const sendButtonRef = useRef<HTMLButtonElement>(null);
@@ -125,8 +126,8 @@ export function ComposeTab({ initialHtml, initialTemplateId, onHtmlUsed }: Compo
       composeType,
       updatedAt: new Date().toISOString(),
     });
-    setShowSaveSuccess(true);
-    setTimeout(() => setShowSaveSuccess(false), 3000);
+    setShowDraftSaveSuccess(true);
+    setTimeout(() => setShowDraftSaveSuccess(false), 3000);
   };
 
   const { data: currentTier } = useFirebaseData<string>('tier', 'tier_1');
@@ -773,9 +774,22 @@ export function ComposeTab({ initialHtml, initialTemplateId, onHtmlUsed }: Compo
         {/* Footer Actions */}
         <div className="p-4 border-t border-gray-100 bg-gray-50 flex items-center justify-between mt-auto">
           <div className="flex items-center gap-2">
-            <button className="p-2 text-gray-400 hover:text-gray-600 hover:bg-gray-200 rounded-full transition-colors">
+            <button 
+              onClick={handleSaveDraft}
+              className="p-2 text-gray-400 hover:text-emerald-600 hover:bg-emerald-50 rounded-full transition-colors"
+            >
               <FileText className="w-5 h-5" />
             </button>
+            {showDraftSaveSuccess && (
+              <motion.div 
+                initial={{ opacity: 0, x: 10 }}
+                animate={{ opacity: 1, x: 0 }}
+                exit={{ opacity: 0, x: 10 }}
+                className="flex items-center gap-1 text-emerald-600 text-sm font-medium"
+              >
+                <Check className="w-4 h-4" /> Draft Saved!
+              </motion.div>
+            )}
           </div>
           <button 
             onClick={() => {
