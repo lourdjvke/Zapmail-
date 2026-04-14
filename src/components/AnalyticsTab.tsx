@@ -2,7 +2,7 @@ import { useState, useMemo } from "react";
 import { motion, AnimatePresence } from "motion/react";
 import { LineChart, Line, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid } from "recharts";
 import { Plus, MoreHorizontal, ChevronDown, Filter } from "lucide-react";
-import { useFirebaseData, EmailJob } from "../lib/store";
+import { useFirebaseData, EmailJob, useAuth } from "../lib/store";
 
 function FilterDropdown({ label, options, badge, onSelect }: { label: string, options: string[], badge?: number, onSelect?: (opt: string) => void }) {
   const [isOpen, setIsOpen] = useState(false);
@@ -43,8 +43,30 @@ function FilterDropdown({ label, options, badge, onSelect }: { label: string, op
 
 export function AnalyticsTab() {
   const { data: jobs, loading } = useFirebaseData<EmailJob[]>('outgoing_emails', []);
+  const { user } = useAuth();
   const [period, setPeriod] = useState("This Year");
   const [filter, setFilter] = useState("All");
+  const [activeTab, setActiveTab] = useState<"History" | "Running">("History");
+
+  const cancelJob = async (jobId: string) => {
+    if (!user) return;
+    const SCRIPT_URL = "https://script.google.com/macros/s/AKfycbyiJGmhgbmu3sXdloDT4QndnYwArdjYm3F1GmPIkZhbf-gB_mA8_VTP41WPJuCQifG1/exec";
+    
+    const payload = { action: "cancel", userId: user.uid, jobId: jobId };
+    
+    try {
+      await fetch(SCRIPT_URL, {
+        method: 'POST',
+        mode: 'no-cors',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload)
+      });
+      alert("Cancellation request sent.");
+    } catch (error) {
+      console.error("Cancel Error:", error);
+      alert("Failed to send cancellation request.");
+    }
+  };
 
   const performanceData = useMemo(() => {
     const months = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
@@ -176,7 +198,23 @@ export function AnalyticsTab() {
       {/* Recent Jobs Table */}
       <div className="bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden">
         <div className="p-4 border-b border-gray-100 flex flex-col lg:flex-row lg:items-center justify-between gap-4">
-          <h3 className="text-lg font-semibold text-gray-900">Recent Email Jobs</h3>
+          <div className="flex items-center gap-4">
+            <h3 className="text-lg font-semibold text-gray-900">Email Jobs</h3>
+            <div className="flex bg-gray-100 p-1 rounded-lg">
+              <button 
+                onClick={() => setActiveTab("History")}
+                className={`px-4 py-1.5 text-sm font-medium rounded-md transition-all ${activeTab === "History" ? "bg-white text-emerald-600 shadow-sm" : "text-gray-500 hover:text-gray-700"}`}
+              >
+                History
+              </button>
+              <button 
+                onClick={() => setActiveTab("Running")}
+                className={`px-4 py-1.5 text-sm font-medium rounded-md transition-all ${activeTab === "Running" ? "bg-white text-emerald-600 shadow-sm" : "text-gray-500 hover:text-gray-700"}`}
+              >
+                Running Jobs
+              </button>
+            </div>
+          </div>
         </div>
 
         <div className="overflow-x-auto">
@@ -189,23 +227,44 @@ export function AnalyticsTab() {
                 <th className="px-4 py-3 min-w-[100px]">Sent</th>
                 <th className="px-4 py-3 min-w-[100px]">Failed</th>
                 <th className="px-4 py-3 min-w-[150px]">Date</th>
+                {activeTab === "Running" && <th className="px-4 py-3 w-20">Action</th>}
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-50">
-              {jobs.length === 0 ? (
-                <tr>
-                  <td colSpan={6} className="px-4 py-8 text-center text-gray-500">No email jobs found.</td>
-                </tr>
-              ) : (
-                jobs.sort((a, b) => (b.lastUpdated || 0) - (a.lastUpdated || 0)).map((job) => (
+              {(() => {
+                const filtered = jobs.filter(job => {
+                  const isRunning = ['pending', 'processing', 'scheduled', 'retrying batch...'].includes(job.status);
+                  return activeTab === "Running" ? isRunning : !isRunning;
+                });
+
+                if (filtered.length === 0) {
+                  return (
+                    <tr>
+                      <td colSpan={activeTab === "Running" ? 7 : 6} className="px-4 py-8 text-center text-gray-500">
+                        No {activeTab === "Running" ? "running" : "history"} jobs found.
+                      </td>
+                    </tr>
+                  );
+                }
+
+                return filtered.sort((a, b) => (b.lastUpdated || 0) - (a.lastUpdated || 0)).map((job) => (
                   <tr key={job.id} className="hover:bg-gray-50/50 group transition-colors">
                     <td className="px-4 py-3">
-                      <span className="font-medium text-gray-900">{job.subject || 'No Subject'}</span>
+                      <div className="flex flex-col">
+                        <span className="font-medium text-gray-900">{job.subject || 'No Subject'}</span>
+                        {job.recurrence && job.recurrence !== 'none' && (
+                          <span className="text-[10px] text-emerald-600 font-medium">🔁 {job.recurrence}</span>
+                        )}
+                        {job.scheduledFor && job.scheduledFor > Date.now() && (
+                          <span className="text-[10px] text-blue-600 font-medium">⏰ {new Date(job.scheduledFor).toLocaleString()}</span>
+                        )}
+                      </div>
                     </td>
                     <td className="px-4 py-3">
                       <span className={`px-2.5 py-1 rounded-full text-xs font-medium border ${
-                        job.status === "pending" || job.status === "processing" ? "border-blue-200 text-blue-600 bg-blue-50" :
+                        job.status === "pending" || job.status === "processing" || job.status === "scheduled" ? "border-blue-200 text-blue-600 bg-blue-50" :
                         job.status === "done" || job.status === "completed" ? "border-emerald-200 text-emerald-600 bg-emerald-50" :
+                        job.status === "cancelled" ? "border-gray-200 text-gray-600 bg-gray-50" :
                         "border-red-200 text-red-600 bg-red-50"
                       }`}>
                         {job.status}
@@ -215,7 +274,7 @@ export function AnalyticsTab() {
                       <div className="flex items-center gap-2">
                         <div className="h-1.5 w-full bg-gray-100 rounded-full overflow-hidden">
                           <div 
-                            className="h-full bg-emerald-500 rounded-full" 
+                            className="h-full bg-emerald-500 rounded-full transition-all duration-500" 
                             style={{ width: `${((job.sent || 0) / (job.total || 1)) * 100}%` }}
                           />
                         </div>
@@ -227,9 +286,21 @@ export function AnalyticsTab() {
                     <td className="px-4 py-3 text-gray-600">
                       {job.lastUpdated ? new Date(job.lastUpdated).toLocaleDateString() : 'N/A'}
                     </td>
+                    {activeTab === "Running" && (
+                      <td className="px-4 py-3">
+                        {['pending', 'processing', 'scheduled', 'retrying batch...'].includes(job.status) && (
+                          <button 
+                            onClick={() => cancelJob(job.id)}
+                            className="text-xs text-red-500 hover:text-red-700 font-medium underline underline-offset-2"
+                          >
+                            Cancel
+                          </button>
+                        )}
+                      </td>
+                    )}
                   </tr>
-                ))
-              )}
+                ));
+              })()}
             </tbody>
           </table>
         </div>

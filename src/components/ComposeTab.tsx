@@ -1,7 +1,7 @@
 import React, { useState, useRef, useEffect, useMemo } from "react";
 import { motion, AnimatePresence } from "motion/react";
-import { Upload, X, Send, Paperclip, Image as ImageIcon, Type, FileText, Users, ChevronDown, Eye, Layout, Edit3, Palette, Trash2, Link as LinkIcon, AlertTriangle, Check } from "lucide-react";
-import { useFirebaseData, useAuth, BroadcastList, EmailTemplate, EmailJob, Draft } from "../lib/store";
+import { Upload, X, Send, Paperclip, Image as ImageIcon, Type, FileText, Users, ChevronDown, Eye, Layout, Edit3, Palette, Trash2, Link as LinkIcon, AlertTriangle, Check, Calendar, Repeat } from "lucide-react";
+import { useFirebaseData, useAuth, BroadcastList, EmailTemplate, EmailJob, Draft, Lead } from "../lib/store";
 import { fetchEmailsFromRTDB } from "../services/rtdbService";
 import { sanitizeHtml } from "../lib/utils";
 
@@ -51,20 +51,36 @@ export function ComposeTab({ initialHtml, initialTemplateId, onHtmlUsed }: Compo
     if (longPressTimer.current) clearTimeout(longPressTimer.current);
   };
 
+  const [isBottomSheetOpen, setIsBottomSheetOpen] = useState(false);
+  const [scheduledFor, setScheduledFor] = useState<string>("");
+  const [recurrence, setRecurrence] = useState("none");
+  const { data: leads } = useFirebaseData<Lead[]>('leads', []);
+
+  const leadMap = useMemo(() => {
+    const map = new Map<string, string>();
+    leads.forEach(lead => {
+      if (lead.email && lead.name) {
+        map.set(lead.email.toLowerCase(), lead.name);
+      }
+    });
+    return map;
+  }, [leads]);
+
   const handleTestSend = async () => {
     if (!user || !testEmail) return;
     
-    // Logic for test send
-    const SCRIPT_URL = "https://script.google.com/macros/s/AKfycbyJTVhwem1VvYKUpYp9UTcN2e-rrQHTX0ImZWgUbHhAAIXG2N3HUtAMzZZ2Y65L9uax/exec";
+    const SCRIPT_URL = "https://script.google.com/macros/s/AKfycbyiJGmhgbmu3sXdloDT4QndnYwArdjYm3F1GmPIkZhbf-gB_mA8_VTP41WPJuCQifG1/exec";
     const payload = { 
+      action: "create",
       userId: user.uid, 
-      to: testEmail, 
+      recipients: [{ name: "Test User", email: testEmail }], 
       sub: `Test: ${subject}`, 
       msg: sanitizeHtml(composeType === "plain" ? content : htmlContent), 
-      isHtml: composeType === "custom" 
+      isHtml: composeType === "custom",
+      scheduledFor: 0,
+      recurrence: "none"
     };
     
-    // Use the same POST method as handleSendEmail
     const form = document.createElement('form');
     form.method = 'POST';
     form.action = SCRIPT_URL;
@@ -81,6 +97,7 @@ export function ComposeTab({ initialHtml, initialTemplateId, onHtmlUsed }: Compo
     
     setIsTestModalOpen(false);
     setTestEmail("");
+    setIsBottomSheetOpen(false);
   };
 
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -120,9 +137,21 @@ export function ComposeTab({ initialHtml, initialTemplateId, onHtmlUsed }: Compo
     }
 
     setIsSending(true);
-    const SCRIPT_URL = "https://script.google.com/macros/s/AKfycbyJTVhwem1VvYKUpYp9UTcN2e-rrQHTX0ImZWgUbHhAAIXG2N3HUtAMzZZ2Y65L9uax/exec";
+    const SCRIPT_URL = "https://script.google.com/macros/s/AKfycbyiJGmhgbmu3sXdloDT4QndnYwArdjYm3F1GmPIkZhbf-gB_mA8_VTP41WPJuCQifG1/exec";
     
     try {
+      // Prepare recipients with names from leads
+      const recipientsArray = emails.map(email => ({
+        name: leadMap.get(email.toLowerCase()) || "",
+        email: email
+      }));
+
+      let scheduledForTime = 0;
+      if (scheduledFor) {
+        const dateObj = new Date(scheduledFor);
+        if (dateObj > new Date()) scheduledForTime = dateObj.getTime();
+      }
+
       // Create an invisible form element
       const form = document.createElement('form');
       form.method = 'POST';
@@ -131,11 +160,14 @@ export function ComposeTab({ initialHtml, initialTemplateId, onHtmlUsed }: Compo
 
       // Bundle all data into a single string to bypass URL length limits
       const payload = { 
+        action: "create",
         userId: user.uid, 
-        to: emails.join(","), 
+        recipients: recipientsArray, 
         sub: subject, 
         msg: sanitizeHtml(composeType === "plain" ? content : htmlContent), 
-        isHtml: composeType === "custom" 
+        isHtml: composeType === "custom",
+        scheduledFor: scheduledForTime,
+        recurrence: recurrence
       };
       
       // Create a hidden input to hold our JSON string
@@ -153,6 +185,7 @@ export function ComposeTab({ initialHtml, initialTemplateId, onHtmlUsed }: Compo
       form.submit();
       document.body.removeChild(form);
 
+      setIsBottomSheetOpen(false);
       alert("Batch process initiated. Monitoring progress...");
     } catch (error) {
       console.error("Error launching batch:", error);
@@ -697,21 +730,109 @@ export function ComposeTab({ initialHtml, initialTemplateId, onHtmlUsed }: Compo
             </button>
           </div>
           <button 
-            onMouseDown={startLongPress}
-            onMouseUp={endLongPress}
-            onMouseLeave={endLongPress}
-            onTouchStart={startLongPress}
-            onTouchEnd={endLongPress}
-            onClick={handleSendEmail}
+            onClick={() => {
+              if (!subject.trim() && !content.trim() && !htmlContent.trim()) {
+                showNotification("Add a subject or content to continue...");
+                return;
+              }
+              setIsBottomSheetOpen(true);
+            }}
             disabled={isSending && activeJob?.status !== 'completed'}
-            className="relative overflow-hidden bg-brand-dark hover:bg-brand-dark/90 text-white px-6 py-2.5 rounded-xl font-medium transition-colors flex items-center gap-2 group disabled:opacity-50"
+            className="relative overflow-hidden bg-brand-dark hover:bg-brand-dark/90 text-white px-8 py-2.5 rounded-xl font-medium transition-colors flex items-center gap-2 group disabled:opacity-50"
           >
-            <Send className="w-4 h-4 group-hover:translate-x-1 group-hover:-translate-y-1 transition-transform" />
-            {isSending && activeJob?.status !== 'completed' ? 'Sending...' : 'Send Email'}
+            Continue
             <div className="absolute inset-0 animate-shimmer pointer-events-none opacity-20" />
           </button>
         </div>
       </div>
+
+      {/* Bottom Sheet / Popup */}
+      <AnimatePresence>
+        {isBottomSheetOpen && (
+          <div className="fixed inset-0 z-[150] flex items-end sm:items-center justify-center bg-black/20 backdrop-blur-[2px] p-0 sm:p-4">
+            <motion.div
+              initial={{ opacity: 0, y: "100%" }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: "100%" }}
+              className="w-full sm:max-w-lg bg-white rounded-t-[12px] sm:rounded-[12px] overflow-hidden border border-emerald-200/50"
+            >
+              <div className="p-6 space-y-6">
+                <div className="flex items-center justify-between">
+                  <h3 className="text-lg font-semibold text-emerald-900">Send Options</h3>
+                  <button onClick={() => setIsBottomSheetOpen(false)} className="text-emerald-400 hover:text-emerald-600">
+                    <X className="w-5 h-5" />
+                  </button>
+                </div>
+
+                <div className="flex overflow-x-auto pb-2 gap-6 hide-scrollbar">
+                  <button 
+                    onClick={handleSendEmail}
+                    className="flex flex-col items-center gap-3 min-w-[80px] p-3 rounded-[8px] border border-emerald-100/50 hover:bg-emerald-50/30 transition-all group"
+                  >
+                    <div className="w-10 h-10 flex items-center justify-center text-emerald-700 group-hover:scale-110 transition-transform">
+                      <Send className="w-6 h-6" />
+                    </div>
+                    <span className="text-[11px] font-semibold text-emerald-900">Send Now</span>
+                  </button>
+
+                  <button 
+                    onClick={() => setIsTestModalOpen(true)}
+                    className="flex flex-col items-center gap-3 min-w-[80px] p-3 rounded-[8px] border border-emerald-100/50 hover:bg-emerald-50/30 transition-all group"
+                  >
+                    <div className="w-10 h-10 flex items-center justify-center text-emerald-700 group-hover:scale-110 transition-transform">
+                      <Eye className="w-6 h-6" />
+                    </div>
+                    <span className="text-[11px] font-semibold text-emerald-900">Send Test</span>
+                  </button>
+
+                  <div className="flex flex-col items-center gap-3 min-w-[140px] p-3 rounded-[8px] border border-emerald-100/50 bg-transparent">
+                    <div className="w-full space-y-1">
+                      <div className="flex items-center gap-1.5">
+                        <Calendar className="w-4 h-4 text-emerald-700" />
+                        <label className="text-[10px] uppercase tracking-wider font-bold text-emerald-700">Schedule</label>
+                      </div>
+                      <input 
+                        type="datetime-local" 
+                        value={scheduledFor}
+                        onChange={(e) => setScheduledFor(e.target.value)}
+                        className="w-full bg-transparent text-[11px] text-emerald-900 outline-none font-medium"
+                      />
+                    </div>
+                  </div>
+
+                  <div className="flex flex-col items-center gap-3 min-w-[120px] p-3 rounded-[8px] border border-emerald-100/50 bg-transparent">
+                    <div className="w-full space-y-1">
+                      <div className="flex items-center gap-1.5">
+                        <Repeat className="w-4 h-4 text-emerald-700" />
+                        <label className="text-[10px] uppercase tracking-wider font-bold text-emerald-700">Recurrence</label>
+                      </div>
+                      <select 
+                        value={recurrence}
+                        onChange={(e) => setRecurrence(e.target.value)}
+                        className="w-full bg-transparent text-[11px] text-emerald-900 outline-none appearance-none font-medium cursor-pointer"
+                      >
+                        <option value="none">None</option>
+                        <option value="daily">Daily</option>
+                        <option value="weekly">Weekly</option>
+                        <option value="monthly">Monthly</option>
+                      </select>
+                    </div>
+                  </div>
+                </div>
+
+                <div className="pt-2">
+                  <button 
+                    onClick={handleSendEmail}
+                    className="w-full py-3 bg-emerald-600 text-white rounded-[8px] font-bold hover:bg-emerald-700 transition-colors"
+                  >
+                    Confirm & Launch
+                  </button>
+                </div>
+              </div>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
 
       {/* Notification */}
       <AnimatePresence>

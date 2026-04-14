@@ -181,10 +181,12 @@ export interface Draft {
 
 export interface EmailJob {
   id: string;
-  status: 'pending' | 'processing' | 'completed' | 'failed' | 'done';
+  status: 'pending' | 'processing' | 'completed' | 'failed' | 'done' | 'scheduled' | 'cancelled';
   total: number;
   sent: number;
   failed: number;
   subject: string;
   lastUpdated: number;
+  scheduledFor?: number;
+  recurrence?: string;
 }
