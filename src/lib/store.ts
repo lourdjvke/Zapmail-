@@ -96,6 +96,37 @@ export function useFirebaseData<T>(path: string, initialValue: T) {
   return { data, saveData, addItem, removeItem, updateItem, loading };
 }
 
+export function useGlobalFirebaseData<T>(path: string, initialValue: T) {
+  const [data, setData] = useState<T>(initialValue);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    const dataRef = ref(db, path);
+
+    const unsubscribe = onValue(dataRef, (snapshot) => {
+      const val = snapshot.val();
+      if (val) {
+        if (typeof val === 'object' && !Array.isArray(val)) {
+          const array = Object.entries(val).map(([id, item]) => ({
+            ...(item as any),
+            id
+          }));
+          setData(array as any);
+        } else {
+          setData(val);
+        }
+      } else {
+        setData(initialValue);
+      }
+      setLoading(false);
+    });
+
+    return () => unsubscribe();
+  }, [path]);
+
+  return { data, loading };
+}
+
 export function useLocalStorage<T>(key: string, initialValue: T) {
   const [storedValue, setStoredValue] = useState<T>(() => {
     try {

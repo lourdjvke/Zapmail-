@@ -1,10 +1,52 @@
-import React from "react";
+import React, { useState } from "react";
 import { motion } from "motion/react";
 import { Check, Zap, Shield, Crown } from "lucide-react";
+import { usePaystackPayment } from 'react-paystack';
+import { useFirebaseData, useAuth } from "../lib/store";
+
+const PaymentButton = ({ tier, amount, children, className, disabled, onUpgrade }: { tier: string, amount: number, children: React.ReactNode, className: string, disabled: boolean, onUpgrade: (tier: string) => void }) => {
+  const { user } = useAuth();
+  const config = {
+    reference: (new Date()).getTime().toString(),
+    email: user?.email || "user@example.com",
+    publicKey: 'pk_test_d7fa6425a02f6759393bb876e9c34aa1bcb3ecf6',
+    amount: amount * 100,
+  };
+  const initializePayment = usePaystackPayment(config);
+  return (
+    <button
+      disabled={disabled}
+      className={className}
+      onClick={() => {
+        if (!user) {
+          alert("Please sign in to upgrade.");
+          return;
+        }
+        initializePayment({
+          onSuccess: (ref: any) => onUpgrade(tier),
+          onClose: () => {}
+        });
+      }}
+    >
+      {children}
+    </button>
+  );
+};
 
 export function PricingTab() {
+  const { user } = useAuth();
+  const { data: currentTier, saveData: setTier } = useFirebaseData<string>('tier', 'tier_1');
+  const [isProcessing, setIsProcessing] = useState(false);
+
+  const handleUpgrade = (tier: string) => {
+    setTier(tier);
+    setIsProcessing(false);
+    alert(`Successfully upgraded to ${tier === 'tier_2' ? 'Tier 2' : 'Tier 3'}!`);
+  };
+
   const tiers = [
     {
+      id: "tier_1",
       name: "Tier 1",
       subtitle: "Default Tier",
       price: "Free",
@@ -17,11 +59,13 @@ export function PricingTab() {
         "Basic analytics",
         "Community support"
       ],
-      buttonText: "Current Plan",
-      buttonClass: "bg-gray-100 text-gray-500 cursor-default",
-      highlight: false
+      buttonText: currentTier === "tier_1" ? "Current Plan" : "Downgrade",
+      buttonClass: currentTier === "tier_1" ? "bg-gray-100 text-gray-500 cursor-default" : "bg-gray-100 text-gray-700 hover:bg-gray-200",
+      highlight: false,
+      action: () => currentTier !== "tier_1" && setTier("tier_1")
     },
     {
+      id: "tier_2",
       name: "Tier 2",
       subtitle: "Professional",
       price: "7,000",
@@ -29,18 +73,22 @@ export function PricingTab() {
       period: "per month",
       icon: <Shield className="w-6 h-6 text-blue-500" />,
       features: [
-        "Up to 200 messages per blast",
+        "Up to 250 messages per blast",
         "Up to 800 messages per day",
-        "Access to Firebase linking",
-        "Access to template libraries",
-        "Priority email support",
+        "Firebase extraction (up to 250)",
+        "Access to everyone's templates",
+        "Access to scheduling emails",
         "Advanced reporting"
       ],
-      buttonText: "Upgrade to Tier 2",
-      buttonClass: "bg-brand-dark text-white hover:bg-brand-dark/90",
-      highlight: true
+      buttonText: currentTier === "tier_2" ? "Current Plan" : (currentTier === "tier_3" ? "Downgrade" : "Upgrade to Tier 2"),
+      buttonClass: currentTier === "tier_2" ? "bg-gray-100 text-gray-500 cursor-default" : "bg-brand-dark text-white hover:bg-brand-dark/90",
+      highlight: true,
+      action: () => currentTier !== "tier_2" && (currentTier === "tier_3" ? setTier("tier_2") : null),
+      isPayment: currentTier !== "tier_2" && currentTier !== "tier_3",
+      amount: 7000
     },
     {
+      id: "tier_3",
       name: "Tier 3",
       subtitle: "Enterprise",
       price: "12,000",
@@ -48,16 +96,20 @@ export function PricingTab() {
       period: "per month",
       icon: <Crown className="w-6 h-6 text-amber-500" />,
       features: [
-        "Up to 500 messages per blast",
+        "Up to 1,000 messages per blast",
         "Up to 1,500 messages per day",
-        "Everything in Tier 2",
-        "Campaign creation & scheduling",
-        "Dedicated account manager",
-        "Custom integration support"
+        "Set up recurring emails",
+        "Spam prevention & Custom domain",
+        "Unlimited Firebase extraction",
+        "Access to experimental features"
       ],
-      buttonText: "Upgrade to Tier 3",
-      buttonClass: "bg-amber-500 text-white hover:bg-amber-600",
-      highlight: false
+      extraNote: "Works best with google workspace",
+      buttonText: currentTier === "tier_3" ? "Current Plan" : "Upgrade to Tier 3",
+      buttonClass: currentTier === "tier_3" ? "bg-gray-100 text-gray-500 cursor-default" : "bg-amber-500 text-white hover:bg-amber-600",
+      highlight: false,
+      action: () => currentTier !== "tier_3" && null,
+      isPayment: currentTier !== "tier_3",
+      amount: 12000
     }
   ];
 
@@ -109,6 +161,11 @@ export function PricingTab() {
             </div>
 
             <div className="flex-1 space-y-4 mb-8">
+              {tier.extraNote && (
+                <div className="text-sm text-emerald-600 font-medium mb-2">
+                  {tier.extraNote}
+                </div>
+              )}
               {tier.features.map((feature) => (
                 <div key={feature} className="flex items-start gap-3 text-sm text-gray-600">
                   <div className="mt-1 w-4 h-4 rounded-full bg-emerald-50 flex items-center justify-center shrink-0">
@@ -119,9 +176,25 @@ export function PricingTab() {
               ))}
             </div>
 
-            <button className={`w-full py-4 rounded-2xl font-bold transition-all ${tier.buttonClass}`}>
-              {tier.buttonText}
-            </button>
+            {tier.isPayment ? (
+              <PaymentButton
+                tier={tier.id}
+                amount={tier.amount || 0}
+                disabled={isProcessing || currentTier === tier.id}
+                className={`w-full py-4 rounded-2xl font-bold transition-all ${tier.buttonClass} disabled:opacity-70`}
+                onUpgrade={handleUpgrade}
+              >
+                {isProcessing && currentTier !== tier.id ? "Processing..." : tier.buttonText}
+              </PaymentButton>
+            ) : (
+              <button 
+                onClick={tier.action}
+                disabled={isProcessing || currentTier === tier.id}
+                className={`w-full py-4 rounded-2xl font-bold transition-all ${tier.buttonClass} disabled:opacity-70`}
+              >
+                {isProcessing && currentTier !== tier.id ? "Processing..." : tier.buttonText}
+              </button>
+            )}
           </motion.div>
         ))}
       </div>

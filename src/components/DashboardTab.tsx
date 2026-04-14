@@ -123,6 +123,60 @@ export function DashboardTab({ onNavigate }: { onNavigate: (tab: string) => void
   const [showSubfolderInput, setShowSubfolderInput] = useState(false);
   const [isRtdbRunning, setIsRtdbRunning] = useState(false);
   const [rtdbResult, setRtdbResult] = useState<{count: number, error?: string} | null>(null);
+  const { data: currentTier } = useFirebaseData<string>('tier', 'tier_1');
+
+  const getTierLimits = () => {
+    if (currentTier === 'tier_3') return { canExtract: true, maxExtraction: Infinity };
+    if (currentTier === 'tier_2') return { canExtract: true, maxExtraction: 250 };
+    return { canExtract: false, maxExtraction: 0 };
+  };
+
+  const limits = getTierLimits();
+
+  const handleRunExtraction = async () => {
+    if (!limits.canExtract) {
+      alert("Firebase extraction is not available on your current tier. Please upgrade.");
+      return;
+    }
+
+    setIsRtdbRunning(true);
+    setRtdbResult(null);
+    try {
+      let results = await fetchEmailsFromRTDB({ 
+        url: rtdbUrl, 
+        folder: rtdbFolder, 
+        subfolders: rtdbSubfolders, 
+        explore: rtdbExplore, 
+        fieldName: rtdbFieldName,
+        nameFieldName: rtdbNameFieldName
+      });
+
+      if (results.length > limits.maxExtraction) {
+        alert(`Extraction capped at ${limits.maxExtraction} contacts for your tier.`);
+        results = results.slice(0, limits.maxExtraction);
+      }
+
+      const emails = results.map(r => r.email);
+      setSmartEmails(prev => [...new Set([...prev, ...emails])]);
+      
+      // Add to leads
+      for (const res of results) {
+        if (!leads.some(l => l.email.toLowerCase() === res.email.toLowerCase())) {
+          await addLead({
+            name: res.name || res.email.split('@')[0],
+            email: res.email,
+            created: new Date().toISOString()
+          });
+        }
+      }
+      
+      setRtdbResult({ count: emails.length });
+    } catch (error: any) {
+      setRtdbResult({ count: 0, error: error.message });
+    } finally {
+      setIsRtdbRunning(false);
+    }
+  };
 
   if (listsLoading || leadsLoading || jobsLoading) {
     return (
@@ -508,8 +562,18 @@ export function DashboardTab({ onNavigate }: { onNavigate: (tab: string) => void
                     </button>
                     {list.rtdbConfig && (
                       <button className="text-gray-400 hover:text-emerald-500 transition-colors" onClick={async () => {
+                        if (!limits.canExtract) {
+                          alert("Firebase extraction is not available on your current tier. Please upgrade.");
+                          return;
+                        }
+
                         if (list.rtdbConfig) {
-                          const results = await fetchEmailsFromRTDB(list.rtdbConfig);
+                          let results = await fetchEmailsFromRTDB(list.rtdbConfig);
+                          if (results.length > limits.maxExtraction) {
+                            alert(`Extraction capped at ${limits.maxExtraction} contacts for your tier.`);
+                            results = results.slice(0, limits.maxExtraction);
+                          }
+
                           const newEmails = results.map(r => r.email);
                           const updatedEmails = [...new Set([...list.emails, ...newEmails])];
                           await updateBroadcastList(list.id, { emails: updatedEmails });
@@ -745,39 +809,7 @@ export function DashboardTab({ onNavigate }: { onNavigate: (tab: string) => void
                         
                         <button 
                           disabled={isRtdbRunning || !rtdbUrl || !rtdbFolder}
-                          onClick={async () => {
-                            setIsRtdbRunning(true);
-                            setRtdbResult(null);
-                            try {
-                              const results = await fetchEmailsFromRTDB({ 
-                                url: rtdbUrl, 
-                                folder: rtdbFolder, 
-                                subfolders: rtdbSubfolders, 
-                                explore: rtdbExplore, 
-                                fieldName: rtdbFieldName,
-                                nameFieldName: rtdbNameFieldName
-                              });
-                              const emails = results.map(r => r.email);
-                              setSmartEmails(prev => [...new Set([...prev, ...emails])]);
-                              
-                              // Add to leads
-                              for (const res of results) {
-                                if (!leads.some(l => l.email.toLowerCase() === res.email.toLowerCase())) {
-                                  await addLead({
-                                    name: res.name || res.email.split('@')[0],
-                                    email: res.email,
-                                    created: new Date().toISOString()
-                                  });
-                                }
-                              }
-                              
-                              setRtdbResult({ count: emails.length });
-                            } catch (error: any) {
-                              setRtdbResult({ count: 0, error: error.message });
-                            } finally {
-                              setIsRtdbRunning(false);
-                            }
-                          }} 
+                          onClick={handleRunExtraction} 
                         className="w-full bg-emerald-600 hover:bg-emerald-700 disabled:opacity-50 text-white p-2 rounded-lg font-medium transition-colors flex items-center justify-center gap-2"
                       >
                         {isRtdbRunning ? <><RefreshCw className="w-4 h-4 animate-spin" /> Extracting...</> : 'Run Extraction'}

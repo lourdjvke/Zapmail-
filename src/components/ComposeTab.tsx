@@ -1,6 +1,6 @@
 import React, { useState, useRef, useEffect, useMemo } from "react";
 import { motion, AnimatePresence } from "motion/react";
-import { Upload, X, Send, Paperclip, Image as ImageIcon, Type, FileText, Users, ChevronDown, Eye, Layout, Edit3, Palette, Trash2, Link as LinkIcon, AlertTriangle, Check, Calendar, Repeat } from "lucide-react";
+import { Upload, X, Send, Paperclip, Image as ImageIcon, Type, FileText, Users, ChevronDown, Eye, Layout, Edit3, Palette, Trash2, Link as LinkIcon, AlertTriangle, Check, Calendar, Repeat, Lock } from "lucide-react";
 import { useFirebaseData, useAuth, BroadcastList, EmailTemplate, EmailJob, Draft, Lead } from "../lib/store";
 import { fetchEmailsFromRTDB } from "../services/rtdbService";
 import { sanitizeHtml } from "../lib/utils";
@@ -129,10 +129,44 @@ export function ComposeTab({ initialHtml, initialTemplateId, onHtmlUsed }: Compo
     setTimeout(() => setShowSaveSuccess(false), 3000);
   };
 
+  const { data: currentTier } = useFirebaseData<string>('tier', 'tier_1');
+  const { data: jobs } = useFirebaseData<EmailJob[]>('outgoing_emails', []);
+
+  const getTierLimits = () => {
+    if (currentTier === 'tier_3') return { maxRecipients: 1000, canSchedule: true, canRecur: true, dailyLimit: 1500 };
+    if (currentTier === 'tier_2') return { maxRecipients: 250, canSchedule: true, canRecur: false, dailyLimit: 800 };
+    return { maxRecipients: 20, canSchedule: false, canRecur: false, dailyLimit: 100 };
+  };
+
+  const limits = getTierLimits();
+
+  const getEmailsSentToday = () => {
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    return jobs.reduce((acc, job) => {
+      const jobDate = new Date(job.lastUpdated || 0);
+      if (jobDate >= today) {
+        return acc + (job.total || 0);
+      }
+      return acc;
+    }, 0);
+  };
+
   const handleSendEmail = async () => {
     if (!user) return;
     if (emails.length === 0 || !subject || (!content && !htmlContent)) {
       alert("Please fill all fields and add at least one recipient.");
+      return;
+    }
+
+    if (emails.length > limits.maxRecipients) {
+      showNotification(`Upgrade for more recipients (Limit: ${limits.maxRecipients})`);
+      return;
+    }
+
+    const sentToday = getEmailsSentToday();
+    if (sentToday + emails.length > limits.dailyLimit) {
+      showNotification(`Daily limit exceeded. You can send ${Math.max(0, limits.dailyLimit - sentToday)} more emails today.`);
       return;
     }
 
@@ -785,28 +819,30 @@ export function ComposeTab({ initialHtml, initialTemplateId, onHtmlUsed }: Compo
                     <span className="text-[13px] font-semibold text-emerald-900">Send Test</span>
                   </button>
 
-                  <div className="flex items-center justify-between w-full p-3 rounded-[8px] border border-emerald-100/50 bg-transparent">
+                  <div className={`flex items-center justify-between w-full p-3 rounded-[8px] border border-emerald-100/50 ${!limits.canSchedule ? 'bg-gray-50 opacity-60' : 'bg-transparent'}`}>
                     <div className="flex items-center gap-3">
-                      <Calendar className="w-4 h-4 text-emerald-700" />
-                      <label className="text-[13px] font-semibold text-emerald-900">Schedule</label>
+                      {!limits.canSchedule ? <Lock className="w-4 h-4 text-gray-400" /> : <Calendar className="w-4 h-4 text-emerald-700" />}
+                      <label className={`text-[13px] font-semibold ${!limits.canSchedule ? 'text-gray-500' : 'text-emerald-900'}`}>Schedule</label>
                     </div>
                     <input 
                       type="datetime-local" 
                       value={scheduledFor}
                       onChange={(e) => setScheduledFor(e.target.value)}
-                      className="bg-transparent text-[11px] text-emerald-900 outline-none font-medium text-right"
+                      disabled={!limits.canSchedule}
+                      className="bg-transparent text-[11px] text-emerald-900 outline-none font-medium text-right disabled:text-gray-400"
                     />
                   </div>
 
-                  <div className="flex items-center justify-between w-full p-3 rounded-[8px] border border-emerald-100/50 bg-transparent">
+                  <div className={`flex items-center justify-between w-full p-3 rounded-[8px] border border-emerald-100/50 ${!limits.canRecur ? 'bg-gray-50 opacity-60' : 'bg-transparent'}`}>
                     <div className="flex items-center gap-3">
-                      <Repeat className="w-4 h-4 text-emerald-700" />
-                      <label className="text-[13px] font-semibold text-emerald-900">Recurrence</label>
+                      {!limits.canRecur ? <Lock className="w-4 h-4 text-gray-400" /> : <Repeat className="w-4 h-4 text-emerald-700" />}
+                      <label className={`text-[13px] font-semibold ${!limits.canRecur ? 'text-gray-500' : 'text-emerald-900'}`}>Recurrence</label>
                     </div>
                     <select 
                       value={recurrence}
                       onChange={(e) => setRecurrence(e.target.value)}
-                      className="bg-transparent text-[11px] text-emerald-900 outline-none appearance-none font-medium cursor-pointer text-right"
+                      disabled={!limits.canRecur}
+                      className="bg-transparent text-[11px] text-emerald-900 outline-none appearance-none font-medium cursor-pointer text-right disabled:text-gray-400 disabled:cursor-not-allowed"
                     >
                       <option value="none">None</option>
                       <option value="daily">Daily</option>
@@ -837,7 +873,7 @@ export function ComposeTab({ initialHtml, initialTemplateId, onHtmlUsed }: Compo
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
             exit={{ opacity: 0, y: -20 }}
-            className="fixed bottom-4 right-4 bg-gray-900 text-white px-4 py-2 rounded-lg shadow-lg text-sm z-[120]"
+            className="fixed bottom-4 right-4 bg-gray-900 text-white px-4 py-2 rounded-lg shadow-lg text-sm z-[120] whitespace-nowrap"
           >
             {notification}
           </motion.div>

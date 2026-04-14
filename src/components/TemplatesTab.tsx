@@ -1,7 +1,7 @@
 import React, { useState, useRef, useEffect, useMemo } from "react";
 import { motion, AnimatePresence } from "motion/react";
 import { Layout, Check, Trash2, Heart, Filter } from "lucide-react";
-import { useFirebaseData, EmailTemplate } from "../lib/store";
+import { useFirebaseData, useGlobalFirebaseData, EmailTemplate } from "../lib/store";
 import { TemplatePreview } from "./TemplatePreview";
 
 interface TemplatesTabProps {
@@ -11,12 +11,13 @@ interface TemplatesTabProps {
 interface TemplateCardProps {
   template: EmailTemplate; 
   onUse: (template: EmailTemplate) => void;
-  onDelete: (id: string) => void;
-  onToggleFavorite: (template: EmailTemplate) => void;
+  onDelete?: (id: string) => void;
+  onToggleFavorite?: (template: EmailTemplate) => void;
   onPreview: (template: EmailTemplate) => void;
+  isGlobal?: boolean;
 }
 
-const TemplateCard: React.FC<TemplateCardProps> = ({ template, onUse, onDelete, onToggleFavorite, onPreview }) => {
+const TemplateCard: React.FC<TemplateCardProps> = ({ template, onUse, onDelete, onToggleFavorite, onPreview, isGlobal }) => {
   const iframeRef = useRef<HTMLIFrameElement>(null);
 
   useEffect(() => {
@@ -59,19 +60,29 @@ const TemplateCard: React.FC<TemplateCardProps> = ({ template, onUse, onDelete, 
         />
         <div className="absolute inset-0 z-10 bg-transparent" />
         
-        <button 
-          onClick={(e) => { e.stopPropagation(); onToggleFavorite(template); }}
-          className={`absolute top-3 left-3 p-2 bg-white/90 backdrop-blur-sm rounded-xl transition-all shadow-sm z-20 ${template.favorite ? 'text-red-500' : 'text-gray-400 hover:text-red-500'}`}
-        >
-          <Heart className={`w-4 h-4 ${template.favorite ? 'fill-current' : ''}`} />
-        </button>
+        {isGlobal && (
+          <div className="absolute top-3 left-3 px-3 py-1 bg-brand-dark text-white text-[10px] font-bold uppercase tracking-wider rounded-xl shadow-sm z-20">
+            Community
+          </div>
+        )}
 
-        <button 
-          onClick={(e) => { e.stopPropagation(); onDelete(template.id); }}
-          className="absolute top-3 right-3 p-2 bg-white/90 backdrop-blur-sm text-red-500 rounded-xl opacity-0 group-hover:opacity-100 transition-all hover:bg-red-50 shadow-sm z-20"
-        >
-          <Trash2 className="w-4 h-4" />
-        </button>
+        {!isGlobal && onToggleFavorite && (
+          <button 
+            onClick={(e) => { e.stopPropagation(); onToggleFavorite(template); }}
+            className={`absolute top-3 left-3 p-2 bg-white/90 backdrop-blur-sm rounded-xl transition-all shadow-sm z-20 ${template.favorite ? 'text-red-500' : 'text-gray-400 hover:text-red-500'}`}
+          >
+            <Heart className={`w-4 h-4 ${template.favorite ? 'fill-current' : ''}`} />
+          </button>
+        )}
+
+        {!isGlobal && onDelete && (
+          <button 
+            onClick={(e) => { e.stopPropagation(); onDelete(template.id); }}
+            className="absolute top-3 right-3 p-2 bg-white/90 backdrop-blur-sm text-red-500 rounded-xl opacity-0 group-hover:opacity-100 transition-all hover:bg-red-50 shadow-sm z-20"
+          >
+            <Trash2 className="w-4 h-4" />
+          </button>
+        )}
       </div>
 
       <div className="p-4 bg-white border-t border-gray-50">
@@ -88,10 +99,13 @@ const TemplateCard: React.FC<TemplateCardProps> = ({ template, onUse, onDelete, 
 }
 
 export function TemplatesTab({ onUseTemplate }: TemplatesTabProps) {
-  const { data: templates, removeItem, updateItem, loading } = useFirebaseData<EmailTemplate[]>('templates', []);
+  const { data: currentTier } = useFirebaseData<string>('tier', 'tier_1');
+  const { data: myTemplates, removeItem, updateItem, loading: loadingMy } = useFirebaseData<EmailTemplate[]>('templates', []);
+  const { data: globalTemplates, loading: loadingGlobal } = useGlobalFirebaseData<EmailTemplate[]>('global_templates', []);
+  
   const [deleteConfirmId, setDeleteConfirmId] = useState<string | null>(null);
   const [previewTemplate, setPreviewTemplate] = useState<EmailTemplate | null>(null);
-  const [filter, setFilter] = useState<'All' | 'By me' | 'Saved'>('All');
+  const [filter, setFilter] = useState<'All' | 'By me' | 'Saved' | 'Community'>('All');
   const [visibleCount, setVisibleCount] = useState(8);
 
   const handleDeleteTemplate = async () => {
@@ -104,23 +118,39 @@ export function TemplatesTab({ onUseTemplate }: TemplatesTabProps) {
     await updateItem(template.id, { favorite: !template.favorite });
   };
 
-  const filteredTemplates = useMemo(() => {
-    let filtered = [...templates];
-    if (filter === 'Saved') {
-      filtered = filtered.filter(t => t.favorite);
+  const allTemplates = useMemo(() => {
+    const combined = [...myTemplates.map(t => ({ ...t, isGlobal: false }))];
+    if (currentTier === 'tier_2' || currentTier === 'tier_3') {
+      combined.push(...globalTemplates.map(t => ({ ...t, isGlobal: true })));
     }
-    // 'By me' is all templates as they are all created by the user
+    return combined;
+  }, [myTemplates, globalTemplates, currentTier]);
+
+  const filteredTemplates = useMemo(() => {
+    let filtered = [...allTemplates];
+    if (filter === 'Saved') {
+      filtered = filtered.filter(t => t.favorite && !t.isGlobal);
+    } else if (filter === 'By me') {
+      filtered = filtered.filter(t => !t.isGlobal);
+    } else if (filter === 'Community') {
+      filtered = filtered.filter(t => t.isGlobal);
+    }
     return filtered.sort((a, b) => new Date(b.created).getTime() - new Date(a.created).getTime());
-  }, [templates, filter]);
+  }, [allTemplates, filter]);
 
   const displayedTemplates = filteredTemplates.slice(0, visibleCount);
 
-  if (loading) {
+  if (loadingMy || (loadingGlobal && (currentTier === 'tier_2' || currentTier === 'tier_3'))) {
     return (
       <div className="flex items-center justify-center h-64">
         <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-emerald-500"></div>
       </div>
     );
+  }
+
+  const filters = ['All', 'By me', 'Saved'];
+  if (currentTier === 'tier_2' || currentTier === 'tier_3') {
+    filters.push('Community');
   }
 
   return (
@@ -131,12 +161,12 @@ export function TemplatesTab({ onUseTemplate }: TemplatesTabProps) {
           <p className="text-gray-500 text-sm mt-1">Browse and reuse your custom email designs</p>
         </div>
         
-        <div className="flex bg-gray-100 p-1 rounded-xl">
-          {(['All', 'By me', 'Saved'] as const).map(f => (
+        <div className="flex bg-gray-100 p-1 rounded-xl overflow-x-auto hide-scrollbar">
+          {filters.map(f => (
             <button 
               key={f}
-              onClick={() => setFilter(f)}
-              className={`px-4 py-2 rounded-lg text-sm font-medium transition-all ${filter === f ? 'bg-white text-brand-dark shadow-sm' : 'text-gray-600 hover:bg-gray-200/50'}`}
+              onClick={() => setFilter(f as any)}
+              className={`px-4 py-2 rounded-lg text-sm font-medium transition-all whitespace-nowrap ${filter === f ? 'bg-white text-brand-dark shadow-sm' : 'text-gray-600 hover:bg-gray-200/50'}`}
             >
               {f}
             </button>
@@ -147,12 +177,13 @@ export function TemplatesTab({ onUseTemplate }: TemplatesTabProps) {
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
         {displayedTemplates.map(template => (
           <TemplateCard 
-            key={template.id} 
+            key={template.id + (template.isGlobal ? '_global' : '')} 
             template={template} 
             onUse={onUseTemplate}
-            onDelete={(id) => setDeleteConfirmId(id)}
-            onToggleFavorite={handleToggleFavorite}
+            onDelete={template.isGlobal ? undefined : (id) => setDeleteConfirmId(id)}
+            onToggleFavorite={template.isGlobal ? undefined : handleToggleFavorite}
             onPreview={() => setPreviewTemplate(template)}
+            isGlobal={template.isGlobal}
           />
         ))}
       </div>
