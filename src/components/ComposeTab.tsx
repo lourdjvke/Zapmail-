@@ -363,7 +363,9 @@ export function ComposeTab({ initialHtml, initialTemplateId, onHtmlUsed }: Compo
       uid: user?.uid
     };
 
-    if (editingTemplateId) {
+    const isOwner = templates.some(t => t.id === editingTemplateId);
+
+    if (editingTemplateId && isOwner) {
       await updateTemplate(editingTemplateId, templateData);
     } else {
       await addTemplate({
@@ -617,6 +619,28 @@ export function ComposeTab({ initialHtml, initialTemplateId, onHtmlUsed }: Compo
           <h1 className="text-2xl font-semibold">Compose Email</h1>
           <p className="text-gray-500 text-sm mt-1">Create and send your campaigns to multiple recipients</p>
         </div>
+        <div className="flex items-center bg-gray-100 p-1 rounded-xl">
+          <button
+            onClick={() => setComposeType("plain")}
+            className={`px-4 py-2 rounded-lg text-sm font-medium transition-all ${
+              composeType === "plain"
+                ? "bg-white text-emerald-600 shadow-sm"
+                : "text-gray-500 hover:text-gray-700"
+            }`}
+          >
+            Plain Text
+          </button>
+          <button
+            onClick={() => setComposeType("custom")}
+            className={`px-4 py-2 rounded-lg text-sm font-medium transition-all ${
+              composeType === "custom"
+                ? "bg-white text-emerald-600 shadow-sm"
+                : "text-gray-500 hover:text-gray-700"
+            }`}
+          >
+            Custom HTML
+          </button>
+        </div>
       </div>
 
       <div className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden flex flex-col min-h-[80vh]">
@@ -727,6 +751,33 @@ export function ComposeTab({ initialHtml, initialTemplateId, onHtmlUsed }: Compo
 
         {/* Editor */}
         <div className="flex-1 flex flex-col relative bg-white">
+          <div className="bg-gray-50 border-b border-gray-100 p-2 flex items-center justify-end text-gray-500">
+            <div className="flex items-center gap-2">
+              <button 
+                onClick={() => setIsSaveModalOpen(true)}
+                className="flex items-center gap-1.5 text-sm bg-white border border-gray-200 px-3 py-1.5 rounded-lg hover:bg-gray-50 transition-colors text-emerald-600 font-medium"
+              >
+                <Layout className="w-4 h-4" /> {(editingTemplateId && templates.some(t => t.id === editingTemplateId)) ? "Update Template" : "Save as Template"}
+              </button>
+              <button 
+                onClick={() => setIsPreviewOpen(true)}
+                className="flex items-center gap-1.5 text-sm bg-white border border-gray-200 px-3 py-1.5 rounded-lg hover:bg-gray-50 transition-colors text-gray-700"
+              >
+                <Eye className="w-4 h-4" /> Preview
+              </button>
+            </div>
+            {showSaveSuccess && (
+              <motion.div 
+                initial={{ opacity: 0, x: 20 }}
+                animate={{ opacity: 1, x: 0 }}
+                exit={{ opacity: 0, x: 20 }}
+                className="flex items-center gap-2 text-emerald-600 text-sm font-medium bg-emerald-50 px-3 py-1.5 rounded-lg border border-emerald-100 ml-2"
+              >
+                <Check className="w-4 h-4" /> Template Saved!
+              </motion.div>
+            )}
+          </div>
+
           {composeType === "plain" ? (
             <textarea 
               value={content}
@@ -737,32 +788,6 @@ export function ComposeTab({ initialHtml, initialTemplateId, onHtmlUsed }: Compo
             />
           ) : (
             <>
-              <div className="bg-gray-50 border-b border-gray-100 p-2 flex items-center justify-end text-gray-500">
-                <div className="flex items-center gap-2">
-                  <button 
-                    onClick={() => setIsSaveModalOpen(true)}
-                    className="flex items-center gap-1.5 text-sm bg-white border border-gray-200 px-3 py-1.5 rounded-lg hover:bg-gray-50 transition-colors text-emerald-600 font-medium"
-                  >
-                    <Layout className="w-4 h-4" /> {editingTemplateId ? "Update Template" : "Save as Template"}
-                  </button>
-                  <button 
-                    onClick={() => setIsPreviewOpen(true)}
-                    className="flex items-center gap-1.5 text-sm bg-white border border-gray-200 px-3 py-1.5 rounded-lg hover:bg-gray-50 transition-colors text-gray-700"
-                  >
-                    <Eye className="w-4 h-4" /> Preview
-                  </button>
-                </div>
-                {showSaveSuccess && (
-                  <motion.div 
-                    initial={{ opacity: 0, x: 20 }}
-                    animate={{ opacity: 1, x: 0 }}
-                    exit={{ opacity: 0, x: 20 }}
-                    className="flex items-center gap-2 text-emerald-600 text-sm font-medium bg-emerald-50 px-3 py-1.5 rounded-lg border border-emerald-100"
-                  >
-                    <Check className="w-4 h-4" /> Template Saved!
-                  </motion.div>
-                )}
-              </div>
               <textarea 
                 placeholder="Paste your HTML code here..."
                 value={htmlContent}
