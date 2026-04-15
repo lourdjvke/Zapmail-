@@ -89,13 +89,13 @@ export function AnalyticsTab() {
       { label: "Success Rate", value: `${successRate}%`, trend: "2%", icon: "💬" },
       { label: "Total Sent", value: totalSent.toLocaleString(), trend: "2%", icon: "📩" },
       { label: "Total Failed", value: totalFailed.toLocaleString(), trend: "2%", icon: "❤️" },
-      { label: "Active Jobs", value: jobs.filter(j => j.status !== 'done').length.toString(), trend: "2%", icon: "⭐" },
+      { label: "Active Jobs", value: jobs.filter(j => j.status !== 'done' && j.status !== 'cancelled').length.toString(), trend: "2%", icon: "⭐" },
     ];
   }, [jobs]);
 
   const filteredJobs = useMemo(() => {
     if (filter === "Success") return jobs.filter(j => j.status === 'done');
-    if (filter === "Ongoing") return jobs.filter(j => j.status !== 'done');
+    if (filter === "Ongoing") return jobs.filter(j => j.status !== 'done' && j.status !== 'cancelled');
     return jobs;
   }, [jobs, filter]);
 

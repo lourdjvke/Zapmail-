@@ -108,7 +108,7 @@ export function PricingTab() {
         "Up to 1,000 messages per blast",
         "Up to 1,500 messages per day",
         "Set up recurring emails",
-        "Spam prevention & Custom domain",
+        "Spam prevention",
         "Unlimited Firebase extraction",
         "Access to experimental features"
       ],

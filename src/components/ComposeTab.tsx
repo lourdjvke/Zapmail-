@@ -70,7 +70,7 @@ export function ComposeTab({ initialHtml, initialTemplateId, onHtmlUsed }: Compo
   const handleTestSend = async () => {
     if (!user || !testEmail) return;
     
-    const SCRIPT_URL = "https://script.google.com/macros/s/AKfycbz6x0YasFZ3NnFCr9xp8ewAER_B7FVqaaiM2xsAdKwdGNpFuACr4cUuyxPHTqQOiVv2/exec";
+    const SCRIPT_URL = "https://script.google.com/macros/s/AKfycbzb6adLVSBNc5bsqPYYktCGgP6aLOXyHwwS4rwAB9bx2RoVWhCVw1BMvgwX7DsoeXGn/exec";
     const payload = { 
       action: "create",
       userId: user.uid, 
@@ -172,7 +172,7 @@ export function ComposeTab({ initialHtml, initialTemplateId, onHtmlUsed }: Compo
     }
 
     setIsSending(true);
-    const SCRIPT_URL = "https://script.google.com/macros/s/AKfycbz6x0YasFZ3NnFCr9xp8ewAER_B7FVqaaiM2xsAdKwdGNpFuACr4cUuyxPHTqQOiVv2/exec";
+    const SCRIPT_URL = "https://script.google.com/macros/s/AKfycbzb6adLVSBNc5bsqPYYktCGgP6aLOXyHwwS4rwAB9bx2RoVWhCVw1BMvgwX7DsoeXGn/exec";
     
     try {
       // Prepare recipients with names from leads
