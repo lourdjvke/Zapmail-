@@ -12,6 +12,7 @@ import { DraftsTab } from "./components/DraftsTab";
 import { PricingTab } from "./components/PricingTab";
 import { PrivacyPolicy } from "./components/PrivacyPolicy";
 import { TermsOfService } from "./components/TermsOfService";
+import { Homepage } from "./components/Homepage";
 import { Loader } from "./components/Loader";
 import { AuthScreen } from "./components/AuthScreen";
 import { useAuth, EmailTemplate } from "./lib/store";
@@ -113,7 +114,10 @@ function AppContent() {
   }
 
   if (!user) {
-    return <AuthScreen onLogin={handleLogin} onEmailLogin={handleEmailLogin} onEmailSignUp={handleEmailSignUp} />;
+    if (location.pathname === "/login" || location.pathname === "/signup") {
+      return <AuthScreen onLogin={handleLogin} onEmailLogin={handleEmailLogin} onEmailSignUp={handleEmailSignUp} />;
+    }
+    return <Homepage />;
   }
 
   return (
