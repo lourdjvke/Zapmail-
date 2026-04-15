@@ -171,9 +171,11 @@ export function AnalyticsTab() {
           <h1 className="text-2xl font-semibold">Analytics</h1>
           <p className="text-gray-500 text-sm mt-1">Organize analytics and track their progress effectively here</p>
         </div>
-        <button className="relative overflow-hidden bg-brand-dark hover:bg-brand-dark/90 text-white px-4 py-2 rounded-lg font-medium transition-colors flex items-center gap-2 group w-fit whitespace-nowrap">
+        <button 
+          disabled
+          className="relative overflow-hidden bg-gray-400 cursor-not-allowed text-white px-4 py-2 rounded-lg font-medium transition-colors flex items-center gap-2 group w-fit whitespace-nowrap"
+        >
           <Plus className="w-4 h-4" /> Create Report
-          <div className="absolute inset-0 animate-shimmer pointer-events-none opacity-20" />
         </button>
       </div>
 
@@ -412,14 +414,14 @@ export function AnalyticsTab() {
                         const isMobile = /iPhone|Android|iPad/i.test(event.ua);
                         
                         return (
-                          <div key={i} className="flex items-center justify-between p-3 rounded-xl border border-gray-50 bg-gray-50/30">
-                            <div className="flex items-center gap-3">
-                              <div>
-                                <div className="text-sm text-gray-900">{lead?.name || email}</div>
-                                <div className="text-[10px] text-gray-400">{new Date(event.at).toLocaleString()}</div>
+                          <div key={i} className="flex items-center justify-between p-3 rounded-xl border border-gray-50 bg-gray-50/30 overflow-hidden">
+                            <div className="flex items-center gap-3 min-w-0">
+                              <div className="min-w-0">
+                                <div className="text-sm text-gray-900 truncate font-medium">{lead?.name || email}</div>
+                                <div className="text-[10px] text-gray-400 truncate">{new Date(event.at).toLocaleString()}</div>
                               </div>
                             </div>
-                            <div className="text-[10px] text-gray-400 font-mono">{email}</div>
+                            <div className="text-[10px] text-gray-400 font-mono truncate ml-4 flex-shrink-0 max-w-[120px]">{email}</div>
                           </div>
                         );
                       }) : (

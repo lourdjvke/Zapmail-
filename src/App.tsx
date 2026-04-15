@@ -11,6 +11,7 @@ import { TemplatesTab } from "./components/TemplatesTab";
 import { DraftsTab } from "./components/DraftsTab";
 import { PricingTab } from "./components/PricingTab";
 import { PrivacyPolicy } from "./components/PrivacyPolicy";
+import { TermsOfService } from "./components/TermsOfService";
 import { Loader } from "./components/Loader";
 import { AuthScreen } from "./components/AuthScreen";
 import { useAuth, EmailTemplate } from "./lib/store";
@@ -105,6 +106,10 @@ function AppContent() {
   // Public route for Privacy Policy
   if (location.pathname === "/privacy") {
     return <PrivacyPolicy />;
+  }
+  // Public route for Terms of Service
+  if (location.pathname === "/terms") {
+    return <TermsOfService />;
   }
 
   if (!user) {
@@ -226,6 +231,8 @@ function AppContent() {
           <div className="flex flex-col items-center gap-4">
             <div className="flex items-center gap-6 text-sm text-gray-500">
               <button onClick={() => navigate("/privacy")} className="hover:text-emerald-600 transition-colors">Privacy Policy</button>
+              <span className="w-1 h-1 rounded-full bg-gray-300" />
+              <button onClick={() => navigate("/terms")} className="hover:text-emerald-600 transition-colors">Terms of Service</button>
               <span className="w-1 h-1 rounded-full bg-gray-300" />
               <span>© {new Date().getFullYear()} Zapmail</span>
             </div>
