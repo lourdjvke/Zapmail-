@@ -110,10 +110,10 @@ export function AnalyticsTab() {
     const successRate = totalSent > 0 ? ((totalSent / (totalSent + totalFailed)) * 100).toFixed(1) : "0";
     
     return [
-      { label: "Success Rate", value: `${successRate}%`, trend: "2%", icon: "💬" },
-      { label: "Total Sent", value: totalSent.toLocaleString(), trend: "2%", icon: "📩" },
-      { label: "Total Failed", value: totalFailed.toLocaleString(), trend: "2%", icon: "❤️" },
-      { label: "Active Jobs", value: jobs.filter(j => j.status !== 'done' && j.status !== 'cancelled').length.toString(), trend: "2%", icon: "⭐" },
+      { label: "Success Rate", value: `${successRate}%`, icon: "💬" },
+      { label: "Total Sent", value: totalSent.toLocaleString(), icon: "📩" },
+      { label: "Total Failed", value: totalFailed.toLocaleString(), icon: "❤️" },
+      { label: "Active Jobs", value: jobs.filter(j => j.status !== 'done' && j.status !== 'cancelled').length.toString(), icon: "⭐" },
     ];
   }, [jobs]);
 
@@ -189,13 +189,6 @@ export function AnalyticsTab() {
               <button className="text-gray-400 hover:text-gray-600"><MoreHorizontal className="w-4 h-4" /></button>
             </div>
             <div className="text-3xl font-bold text-gray-900 mb-2">{stat.value}</div>
-            <div className="flex items-center gap-1 text-sm">
-              <span className="text-emerald-500 font-medium flex items-center">
-                <svg className="w-3 h-3 mr-1" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 10l7-7m0 0l7 7m-7-7v18" /></svg>
-                {stat.trend}
-              </span>
-              <span className="text-gray-500">From last quarter</span>
-            </div>
           </div>
         ))}
       </div>
