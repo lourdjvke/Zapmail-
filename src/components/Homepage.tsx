@@ -21,8 +21,8 @@ export function Homepage() {
           let totalLeads = 0;
           
           Object.values(usersData).forEach((user: any) => {
-            if (user.jobs) {
-              Object.values(user.jobs).forEach((job: any) => {
+            if (user.outgoing_emails) {
+              Object.values(user.outgoing_emails).forEach((job: any) => {
                 totalEmails += (job.total || 0);
               });
             }
