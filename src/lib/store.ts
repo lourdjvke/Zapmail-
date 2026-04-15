@@ -263,6 +263,12 @@ export interface Draft {
   updatedAt: string;
 }
 
+export interface TrackingEvent {
+  at: number;
+  reader: string;
+  ua: string;
+}
+
 export interface EmailJob {
   id: string;
   status: 'pending' | 'processing' | 'completed' | 'failed' | 'done' | 'scheduled' | 'cancelled';
@@ -273,4 +279,7 @@ export interface EmailJob {
   lastUpdated: number;
   scheduledFor?: number;
   recurrence?: string;
+  opens?: number;
+  tracking?: Record<string, TrackingEvent>;
+  isHtml?: boolean;
 }

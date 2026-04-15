@@ -1,8 +1,8 @@
 import { useState, useMemo } from "react";
 import { motion, AnimatePresence } from "motion/react";
 import { LineChart, Line, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid } from "recharts";
-import { Plus, MoreHorizontal, ChevronDown, Filter } from "lucide-react";
-import { useFirebaseData, EmailJob, useAuth } from "../lib/store";
+import { Plus, MoreHorizontal, ChevronDown, Filter, ArrowRight, Users, Mail, X } from "lucide-react";
+import { useFirebaseData, EmailJob, useAuth, Lead, BroadcastList, TrackingEvent } from "../lib/store";
 
 function FilterDropdown({ label, options, badge, onSelect }: { label: string, options: string[], badge?: number, onSelect?: (opt: string) => void }) {
   const [isOpen, setIsOpen] = useState(false);
@@ -43,10 +43,16 @@ function FilterDropdown({ label, options, badge, onSelect }: { label: string, op
 
 export function AnalyticsTab() {
   const { data: jobs, updateItem, loading } = useFirebaseData<EmailJob[]>('outgoing_emails', []);
+  const { data: leads } = useFirebaseData<Lead[]>('leads', []);
+  const { data: tier } = useFirebaseData<string>('tier', 'tier_1');
+  const { addItem: addBroadcast } = useFirebaseData<BroadcastList[]>('broadcasts', []);
   const { user } = useAuth();
   const [period, setPeriod] = useState("This Year");
   const [filter, setFilter] = useState("All");
   const [activeTab, setActiveTab] = useState<"History" | "Running">("History");
+  const [trackingJob, setTrackingJob] = useState<EmailJob | null>(null);
+  const [isBroadcastPopupOpen, setIsBroadcastPopupOpen] = useState(false);
+  const [newBroadcastName, setNewBroadcastName] = useState("");
 
   const cancelJob = async (jobId: string) => {
     if (!user) return;
@@ -72,13 +78,19 @@ export function AnalyticsTab() {
       filteredJobs = jobs.filter(j => (j.lastUpdated || 0) >= monthAgo);
     }
 
+    if (filter === "Success") {
+      filteredJobs = filteredJobs.filter(j => j.status === 'done');
+    } else if (filter === "Ongoing") {
+      filteredJobs = filteredJobs.filter(j => j.status !== 'done' && j.status !== 'cancelled');
+    }
+
     return months.map((m, i) => {
       const monthJobs = filteredJobs.filter(j => new Date(j.lastUpdated || 0).getMonth() === i);
       const success = monthJobs.reduce((acc, j) => acc + (j.sent || 0), 0);
       const failed = monthJobs.reduce((acc, j) => acc + (j.failed || 0), 0);
       return { name: m, success, failed };
     });
-  }, [jobs, period]);
+  }, [jobs, period, filter]);
 
   const stats = useMemo(() => {
     const totalSent = jobs.reduce((acc, j) => acc + (j.sent || 0), 0);
@@ -93,11 +105,37 @@ export function AnalyticsTab() {
     ];
   }, [jobs]);
 
-  const filteredJobs = useMemo(() => {
-    if (filter === "Success") return jobs.filter(j => j.status === 'done');
-    if (filter === "Ongoing") return jobs.filter(j => j.status !== 'done' && j.status !== 'cancelled');
-    return jobs;
-  }, [jobs, filter]);
+  const decodeEmail = (encoded: string) => {
+    try {
+      // Base64 web-safe decoding
+      const base64 = encoded.replace(/-/g, '+').replace(/_/g, '/');
+      return atob(base64);
+    } catch (e) {
+      return encoded;
+    }
+  };
+
+  const trackingList = useMemo(() => {
+    if (!trackingJob?.tracking) return [];
+    return (Object.values(trackingJob.tracking) as TrackingEvent[]).sort((a, b) => b.at - a.at);
+  }, [trackingJob]);
+
+  const handleCreateBroadcast = async () => {
+    if (!newBroadcastName || !trackingJob?.tracking) return;
+    
+    const openerEmails = trackingList.map(t => decodeEmail(t.reader).toLowerCase());
+    const uniqueEmails = Array.from(new Set(openerEmails));
+    
+    await addBroadcast({
+      name: newBroadcastName,
+      emails: uniqueEmails,
+      created: new Date().toISOString()
+    });
+    
+    setIsBroadcastPopupOpen(false);
+    setNewBroadcastName("");
+    alert("Broadcast list created successfully!");
+  };
 
   if (loading) {
     return (
@@ -219,7 +257,7 @@ export function AnalyticsTab() {
                 <th className="px-4 py-3 min-w-[100px]">Sent</th>
                 <th className="px-4 py-3 min-w-[100px]">Failed</th>
                 <th className="px-4 py-3 min-w-[150px]">Date</th>
-                {activeTab === "Running" && <th className="px-4 py-3 w-20">Action</th>}
+                <th className="px-4 py-3 w-20">Action</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-50">
@@ -271,6 +309,15 @@ export function AnalyticsTab() {
                           />
                         </div>
                         <span className="text-xs text-gray-500 w-8">{Math.round(((job.sent || 0) / (job.total || 1)) * 100)}%</span>
+                        {tier === 'tier_3' && job.isHtml && (
+                          <button 
+                            onClick={() => setTrackingJob(job)}
+                            className="p-1 text-dodgerblue hover:bg-blue-50 rounded-md transition-colors"
+                            title="Track Opens"
+                          >
+                            <ArrowRight className="w-4 h-4" />
+                          </button>
+                        )}
                       </div>
                     </td>
                     <td className="px-4 py-3 text-gray-600">{job.sent || 0} / {job.total || 0}</td>
@@ -278,18 +325,16 @@ export function AnalyticsTab() {
                     <td className="px-4 py-3 text-gray-600">
                       {job.lastUpdated ? new Date(job.lastUpdated).toLocaleDateString() : 'N/A'}
                     </td>
-                    {activeTab === "Running" && (
-                      <td className="px-4 py-3">
-                        {['pending', 'processing', 'scheduled', 'retrying batch...'].includes(job.status) && (
-                          <button 
-                            onClick={() => cancelJob(job.id)}
-                            className="text-xs text-red-500 hover:text-red-700 font-medium underline underline-offset-2"
-                          >
-                            Cancel
-                          </button>
-                        )}
-                      </td>
-                    )}
+                    <td className="px-4 py-3">
+                      {activeTab === "Running" && ['pending', 'processing', 'scheduled', 'retrying batch...'].includes(job.status) && (
+                        <button 
+                          onClick={() => cancelJob(job.id)}
+                          className="text-xs text-red-500 hover:text-red-700 font-medium underline underline-offset-2"
+                        >
+                          Cancel
+                        </button>
+                      )}
+                    </td>
                   </tr>
                 ));
               })()}
@@ -297,6 +342,146 @@ export function AnalyticsTab() {
           </table>
         </div>
       </div>
+
+      {/* Tracking Bottom Sheet / Modal */}
+      <AnimatePresence>
+        {trackingJob && (
+          <>
+            <motion.div 
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              onClick={() => setTrackingJob(null)}
+              className="fixed inset-0 bg-black/20 backdrop-blur-sm z-[60]"
+            />
+            <motion.div 
+              initial={{ y: "100%" }}
+              animate={{ y: 0 }}
+              exit={{ y: "100%" }}
+              transition={{ duration: 0.5, ease: [0.32, 0.72, 0, 1] }}
+              className="fixed bottom-0 left-0 right-0 bg-white rounded-t-xl z-[70] overflow-hidden flex flex-col h-[75vh] sm:h-auto sm:max-h-[85vh] sm:bottom-auto sm:top-1/2 sm:left-1/2 sm:-translate-x-1/2 sm:-translate-y-1/2 sm:rounded-2xl sm:w-[500px] sm:shadow-2xl"
+            >
+              <div className="p-6 overflow-y-auto">
+                <div className="flex items-center justify-between mb-8">
+                  <h2 className="text-xl font-medium text-gray-900">Email Tracking</h2>
+                  <button onClick={() => setTrackingJob(null)} className="p-2 hover:bg-gray-100 rounded-full transition-colors">
+                    <X className="w-5 h-5 text-gray-400" />
+                  </button>
+                </div>
+
+                <div className="space-y-8">
+                  <div>
+                    <div className="text-4xl font-light text-gray-900 mb-2">{trackingList.length}</div>
+                    <div className="text-sm text-gray-500">Total Unique Opens</div>
+                  </div>
+
+                  <div className="space-y-2">
+                    <div className="h-2 w-full bg-gray-100 rounded-full overflow-hidden">
+                      <div 
+                        className="h-full bg-dodgerblue rounded-full transition-all duration-1000" 
+                        style={{ width: `${(trackingList.length / (trackingJob.sent || 1)) * 100}%` }}
+                      />
+                    </div>
+                    <div className="flex justify-between text-[10px] text-gray-400">
+                      <span>Sent: {trackingJob.sent || 0}</span>
+                      <span>Opened: {trackingList.length}</span>
+                    </div>
+                  </div>
+
+                  <div className="space-y-4">
+                    <div className="flex items-center justify-between">
+                      <h3 className="text-sm font-medium text-gray-700">Recent Activity</h3>
+                      <button 
+                        onClick={() => setIsBroadcastPopupOpen(true)}
+                        className="text-xs text-dodgerblue hover:underline flex items-center gap-1"
+                      >
+                        <Plus className="w-3 h-3" /> broadcast
+                      </button>
+                    </div>
+
+                    <div className="space-y-3">
+                      {trackingList.length > 0 ? trackingList.map((event, i) => {
+                        const email = decodeEmail(event.reader);
+                        const lead = leads.find(l => l.email.toLowerCase() === email.toLowerCase());
+                        const isMobile = /iPhone|Android|iPad/i.test(event.ua);
+                        
+                        return (
+                          <div key={i} className="flex items-center justify-between p-3 rounded-xl border border-gray-50 bg-gray-50/30">
+                            <div className="flex items-center gap-3">
+                              <div>
+                                <div className="text-sm text-gray-900">{lead?.name || email}</div>
+                                <div className="text-[10px] text-gray-400">{new Date(event.at).toLocaleString()}</div>
+                              </div>
+                            </div>
+                            <div className="text-[10px] text-gray-400 font-mono">{email}</div>
+                          </div>
+                        );
+                      }) : (
+                        <div className="text-center py-8 text-gray-400 text-sm">No opens tracked yet.</div>
+                      )}
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </motion.div>
+          </>
+        )}
+      </AnimatePresence>
+
+      {/* Broadcast Creation Popup */}
+      <AnimatePresence>
+        {isBroadcastPopupOpen && (
+          <div className="fixed inset-0 flex items-center justify-center z-[80] p-4">
+            <motion.div 
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              onClick={() => setIsBroadcastPopupOpen(false)}
+              className="absolute inset-0 bg-black/20 backdrop-blur-sm"
+            />
+            <motion.div 
+              initial={{ scale: 0.95, opacity: 0 }}
+              animate={{ scale: 1, opacity: 1 }}
+              exit={{ scale: 0.95, opacity: 0 }}
+              className="relative bg-white rounded-2xl p-6 w-full max-w-sm shadow-xl"
+            >
+              <h3 className="text-lg font-medium text-gray-900 mb-4">Create Broadcast</h3>
+              <p className="text-sm text-gray-500 mb-6">Create a new list from the {new Set(trackingList.map(t => t.reader)).size} people who opened this email.</p>
+              
+              <input 
+                type="text"
+                placeholder="Broadcast Name (e.g. Interested Leads)"
+                value={newBroadcastName}
+                onChange={(e) => setNewBroadcastName(e.target.value)}
+                className="w-full px-4 py-2 rounded-xl border border-gray-200 focus:ring-2 focus:ring-dodgerblue/20 focus:border-dodgerblue outline-none transition-all mb-6"
+              />
+
+              <div className="flex gap-3">
+                <button 
+                  onClick={() => setIsBroadcastPopupOpen(false)}
+                  className="flex-1 py-2 rounded-xl text-gray-500 hover:bg-gray-50 font-medium transition-colors"
+                >
+                  Cancel
+                </button>
+                <button 
+                  onClick={handleCreateBroadcast}
+                  disabled={!newBroadcastName}
+                  className="flex-1 py-2 rounded-xl bg-dodgerblue text-white font-medium hover:bg-blue-600 transition-colors disabled:opacity-50"
+                >
+                  Create List
+                </button>
+              </div>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
+
+      <style>{`
+        .text-dodgerblue { color: #1e90ff; }
+        .bg-dodgerblue { background-color: #1e90ff; }
+        .focus\\\\:ring-dodgerblue\\\\/20:focus { --tw-ring-color: rgba(30, 144, 255, 0.2); }
+        .focus\\\\:border-dodgerblue:focus { border-color: #1e90ff; }
+      `}</style>
     </motion.div>
   );
 }
