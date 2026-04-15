@@ -1,4 +1,4 @@
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect } from "react";
 import { motion, AnimatePresence } from "motion/react";
 import { LineChart, Line, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid } from "recharts";
 import { Plus, MoreHorizontal, ChevronDown, Filter, ArrowRight, Users, Mail, X } from "lucide-react";
@@ -53,6 +53,18 @@ export function AnalyticsTab() {
   const [trackingJob, setTrackingJob] = useState<EmailJob | null>(null);
   const [isBroadcastPopupOpen, setIsBroadcastPopupOpen] = useState(false);
   const [newBroadcastName, setNewBroadcastName] = useState("");
+
+  // Body scroll lock
+  useEffect(() => {
+    if (trackingJob) {
+      document.body.style.overflow = 'hidden';
+    } else {
+      document.body.style.overflow = 'unset';
+    }
+    return () => {
+      document.body.style.overflow = 'unset';
+    };
+  }, [trackingJob]);
 
   const cancelJob = async (jobId: string) => {
     if (!user) return;
@@ -358,8 +370,9 @@ export function AnalyticsTab() {
               initial={{ y: "100%" }}
               animate={{ y: 0 }}
               exit={{ y: "100%" }}
-              transition={{ duration: 0.5, ease: [0.32, 0.72, 0, 1] }}
-              className="fixed bottom-0 left-0 right-0 bg-white rounded-t-xl z-[70] overflow-hidden flex flex-col h-[75vh] sm:h-auto sm:max-h-[85vh] sm:bottom-auto sm:top-1/2 sm:left-1/2 sm:-translate-x-1/2 sm:-translate-y-1/2 sm:rounded-2xl sm:w-[500px] sm:shadow-2xl"
+              transition={{ duration: 0.6, ease: [0.16, 1, 0.3, 1] }}
+              className="fixed bottom-0 left-0 right-0 bg-white rounded-t-lg z-[70] overflow-hidden flex flex-col h-[75vh] sm:h-auto sm:max-h-[85vh] sm:bottom-auto sm:top-1/2 sm:left-1/2 sm:-translate-x-1/2 sm:-translate-y-1/2 sm:rounded-2xl sm:w-[500px] sm:shadow-2xl"
+              style={{ height: '75vh' }}
             >
               <div className="p-6 overflow-y-auto">
                 <div className="flex items-center justify-between mb-8">
