@@ -42,7 +42,7 @@ function FilterDropdown({ label, options, badge, onSelect }: { label: string, op
 }
 
 export function AnalyticsTab() {
-  const { data: jobs, loading } = useFirebaseData<EmailJob[]>('outgoing_emails', []);
+  const { data: jobs, updateItem, loading } = useFirebaseData<EmailJob[]>('outgoing_emails', []);
   const { user } = useAuth();
   const [period, setPeriod] = useState("This Year");
   const [filter, setFilter] = useState("All");
@@ -50,21 +50,13 @@ export function AnalyticsTab() {
 
   const cancelJob = async (jobId: string) => {
     if (!user) return;
-    const SCRIPT_URL = "https://script.google.com/macros/s/AKfycbyiJGmhgbmu3sXdloDT4QndnYwArdjYm3F1GmPIkZhbf-gB_mA8_VTP41WPJuCQifG1/exec";
-    
-    const payload = { action: "cancel", userId: user.uid, jobId: jobId };
     
     try {
-      await fetch(SCRIPT_URL, {
-        method: 'POST',
-        mode: 'no-cors',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(payload)
-      });
-      alert("Cancellation request sent.");
+      await updateItem(jobId, { status: 'cancelled' });
+      alert("Job cancelled successfully.");
     } catch (error) {
       console.error("Cancel Error:", error);
-      alert("Failed to send cancellation request.");
+      alert("Failed to cancel job.");
     }
   };
 
@@ -211,7 +203,7 @@ export function AnalyticsTab() {
                 onClick={() => setActiveTab("Running")}
                 className={`px-4 py-1.5 text-sm font-medium rounded-md transition-all ${activeTab === "Running" ? "bg-white text-emerald-600 shadow-sm" : "text-gray-500 hover:text-gray-700"}`}
               >
-                Running Jobs
+                Running
               </button>
             </div>
           </div>
