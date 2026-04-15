@@ -1,15 +1,16 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import { motion } from "motion/react";
 import { Check, Zap, Shield, Crown } from "lucide-react";
 import { usePaystackPayment } from 'react-paystack';
 import { useFirebaseData, useAuth } from "../lib/store";
+import axios from 'axios';
 
 const PaymentButton = ({ tier, amount, children, className, disabled, onUpgrade }: { tier: string, amount: number, children: React.ReactNode, className: string, disabled: boolean, onUpgrade: (tier: string) => void }) => {
   const { user } = useAuth();
   const config = {
     reference: (new Date()).getTime().toString(),
     email: user?.email || "user@example.com",
-    publicKey: 'pk_test_d7fa6425a02f6759393bb876e9c34aa1bcb3ecf6',
+    publicKey: 'pk_live_8bfda55664a1327e5d47c4acc6767c123514b826',
     amount: amount * 100,
   };
   const initializePayment = usePaystackPayment(config);
@@ -37,6 +38,24 @@ export function PricingTab() {
   const { user } = useAuth();
   const { data: currentTier, saveData: setTier } = useFirebaseData<string>('tier', 'tier_1');
   const [isProcessing, setIsProcessing] = useState(false);
+  const [usdRate, setUsdRate] = useState<number | null>(null);
+
+  useEffect(() => {
+    const fetchRate = async () => {
+      try {
+        const response = await axios.get('https://api.exchangerate-api.com/v4/latest/NGN');
+        setUsdRate(response.data.rates.USD);
+      } catch (e) {
+        console.error("Failed to fetch exchange rate", e);
+      }
+    };
+    fetchRate();
+  }, []);
+
+  const formatUsd = (amount: number) => {
+    if (!usdRate) return null;
+    return `$${(amount * usdRate).toFixed(2)}`;
+  };
 
   // Discount logic: valid until April 30th, 2026
   const discountEndDate = new Date('2026-04-30T23:59:59');
@@ -164,15 +183,20 @@ export function PricingTab() {
 
             <div className="mb-8">
               <div className="flex items-baseline gap-1 flex-wrap">
-                {tier.currency && <span className="text-lg font-semibold text-gray-900">{tier.currency}</span>}
+                {tier.currency && <span className="text-base font-semibold text-gray-900">{tier.currency}</span>}
                 {isDiscountActive && tier.originalAmount && (
-                  <span className="text-xl text-gray-400 line-through mr-1">
+                  <span className="text-lg text-gray-400 line-through mr-1">
                     {tier.originalAmount.toLocaleString()}
                   </span>
                 )}
-                <span className="text-4xl font-bold text-gray-900">{tier.price}</span>
+                <span className="text-3xl font-bold text-gray-900">{tier.price}</span>
                 <span className="text-gray-500">/{tier.period}</span>
               </div>
+              {tier.amount && (
+                <div className="text-xs text-gray-400 mt-1">
+                  {formatUsd(tier.amount)}
+                </div>
+              )}
               {isDiscountActive && tier.originalAmount && (
                 <div className="text-xs font-bold text-emerald-600 mt-1 uppercase tracking-wider">
                   Limited Time Offer - Ends April 30
