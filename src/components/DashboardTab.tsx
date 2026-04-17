@@ -46,6 +46,8 @@ export function DashboardTab({ onNavigate }: { onNavigate: (tab: string) => void
   const { data: broadcastLists, addItem: addBroadcastList, removeItem: removeBroadcastList, updateItem: updateBroadcastList, loading: listsLoading } = useFirebaseData<BroadcastList[]>('broadcast_lists', []);
   const { data: leads, addItem: addLead, loading: leadsLoading } = useFirebaseData<Lead[]>('leads', []);
   const { data: jobs, loading: jobsLoading } = useFirebaseData<EmailJob[]>('outgoing_emails', []);
+  const { data: isConnected } = useFirebaseData<boolean>('connected', false);
+  const { data: lastConnected } = useFirebaseData<number>('lastConnected', 0);
   const { user } = useAuth();
   
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
@@ -342,11 +344,24 @@ export function DashboardTab({ onNavigate }: { onNavigate: (tab: string) => void
           <p className="text-gray-500 max-w-md text-sm leading-relaxed">
             Create a campaign to promote your business more widely and reach potential markets throughout your contacts!
           </p>
-          <button onClick={() => onNavigate("Compose")} className="relative overflow-hidden bg-brand-dark hover:bg-brand-dark/90 text-white px-6 py-2.5 rounded-full font-medium transition-colors flex items-center gap-2 group w-fit">
-            Start Campaign
-            <span className="group-hover:translate-x-1 transition-transform">→</span>
-            <div className="absolute inset-0 animate-shimmer pointer-events-none opacity-20" />
-          </button>
+          <div className="flex flex-col gap-1 w-fit">
+            <button 
+              onClick={() => {
+                const scriptUrl = "https://script.google.com/macros/s/AKfycbyaS3tv2wZGjD4ncjlmhv_ZUUEaMr3dpinr41W1H4szVMWgcMVebHO-Cehi1E-DpAeQ/exec";
+                window.open(`${scriptUrl}?action=connect&userId=${user?.uid}`, "_blank", "width=400,height=500");
+              }} 
+              className={`relative overflow-hidden px-5 py-2 text-sm rounded-full font-medium transition-colors flex items-center justify-center gap-2 group w-full ${isConnected ? 'bg-emerald-100 text-emerald-800 hover:bg-emerald-200' : 'bg-brand-dark hover:bg-brand-dark/90 text-white'}`}
+            >
+              Email connect: {isConnected ? 'ON' : 'OFF'}
+              {!isConnected && <span className="group-hover:translate-x-1 transition-transform">→</span>}
+              {!isConnected && <div className="absolute inset-0 animate-shimmer pointer-events-none opacity-20" />}
+            </button>
+            {lastConnected > 0 && (
+              <span className="text-[10px] text-gray-400 px-2 text-center font-medium">
+                Last connected: {new Date(lastConnected).toLocaleString()}
+              </span>
+            )}
+          </div>
         </div>
         <div className="hidden lg:flex justify-end relative h-48">
           {/* Decorative floating cards */}

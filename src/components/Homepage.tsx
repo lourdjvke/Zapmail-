@@ -322,7 +322,7 @@ export function Homepage() {
               </div>
               <p className="text-emerald-100/60 text-sm mb-6 max-w-xs leading-relaxed">
                 Abuja, Nigeria<br />
-                support@zapmail.com
+                support@zapmail.name.ng
               </p>
               <div className="flex items-center gap-4">
                 <a href="https://facebook.com/lourdjvke" target="_blank" rel="noreferrer" className="w-10 h-10 rounded-full bg-white/5 flex items-center justify-center hover:bg-white/10 transition-colors">

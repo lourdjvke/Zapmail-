@@ -4,6 +4,8 @@ import { Upload, X, Send, Paperclip, Image as ImageIcon, Type, FileText, Users, 
 import { useFirebaseData, useGlobalFirebaseData, useAuth, BroadcastList, EmailTemplate, EmailJob, Draft, Lead } from "../lib/store";
 import { fetchEmailsFromRTDB } from "../services/rtdbService";
 import { sanitizeHtml } from "../lib/utils";
+import { db } from "../lib/firebase";
+import { ref, set } from "firebase/database";
 
 interface ComposeTabProps {
   initialHtml?: string | null;
@@ -56,6 +58,7 @@ export function ComposeTab({ initialHtml, initialTemplateId, onHtmlUsed }: Compo
   const [scheduledFor, setScheduledFor] = useState<string>("");
   const [recurrence, setRecurrence] = useState("none");
   const { data: leads } = useFirebaseData<Lead[]>('leads', []);
+  const { data: isConnected } = useFirebaseData<boolean>('connected', false);
 
   const leadMap = useMemo(() => {
     const map = new Map<string, string>();
@@ -69,36 +72,41 @@ export function ComposeTab({ initialHtml, initialTemplateId, onHtmlUsed }: Compo
 
   const handleTestSend = async () => {
     if (!user || !testEmail) return;
+    if (!isConnected) {
+      alert("Please connect your email in the Dashboard first.");
+      return;
+    }
     
-    const SCRIPT_URL = "https://script.google.com/macros/s/AKfycbzb6adLVSBNc5bsqPYYktCGgP6aLOXyHwwS4rwAB9bx2RoVWhCVw1BMvgwX7DsoeXGn/exec";
-    const payload = { 
-      action: "create",
-      userId: user.uid, 
-      recipients: [{ name: "Test User", email: testEmail }], 
-      sub: `Test: ${subject}`, 
-      msg: sanitizeHtml(composeType === "plain" ? content : htmlContent), 
-      isHtml: composeType === "custom",
-      scheduledFor: 0,
-      recurrence: "none"
-    };
-    
-    const form = document.createElement('form');
-    form.method = 'POST';
-    form.action = SCRIPT_URL;
-    form.target = 'ZapMailAuth';
-    const input = document.createElement('input');
-    input.type = 'hidden';
-    input.name = 'payload';
-    input.value = JSON.stringify(payload);
-    form.appendChild(input);
-    window.open('', 'ZapMailAuth', 'width=500,height=550');
-    document.body.appendChild(form);
-    form.submit();
-    document.body.removeChild(form);
-    
-    setIsTestModalOpen(false);
-    setTestEmail("");
-    setIsBottomSheetOpen(false);
+    try {
+      const jobId = window.crypto.randomUUID ? window.crypto.randomUUID() : Date.now().toString();
+      const jobData = {
+        jobId: jobId,
+        total: 1,
+        sent: 0,
+        failed: 0,
+        opens: 0,
+        status: "pending",
+        recipients: [{ name: "Test User", email: testEmail }],
+        subject: `Test: ${subject}`,
+        body: sanitizeHtml(composeType === "plain" ? content : htmlContent),
+        isHtml: composeType === "custom",
+        scheduledFor: 0,
+        recurrence: "none",
+        fromAlias: "",
+        lastUpdated: Date.now(),
+        locked: false
+      };
+      
+      await set(ref(db, `users/${user.uid}/outgoing_emails/${jobId}`), jobData);
+      alert("Test email added to queue!");
+      
+      setIsTestModalOpen(false);
+      setTestEmail("");
+      setIsBottomSheetOpen(false);
+    } catch (error) {
+      console.error("Error creating test job:", error);
+      alert("Failed to initiate test email sending.");
+    }
   };
 
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -155,6 +163,10 @@ export function ComposeTab({ initialHtml, initialTemplateId, onHtmlUsed }: Compo
 
   const handleSendEmail = async () => {
     if (!user) return;
+    if (!isConnected) {
+      alert("Please connect your email in the Dashboard first.");
+      return;
+    }
     if (emails.length === 0 || !subject || (!content && !htmlContent)) {
       alert("Please fill all fields and add at least one recipient.");
       return;
@@ -172,7 +184,6 @@ export function ComposeTab({ initialHtml, initialTemplateId, onHtmlUsed }: Compo
     }
 
     setIsSending(true);
-    const SCRIPT_URL = "https://script.google.com/macros/s/AKfycbzb6adLVSBNc5bsqPYYktCGgP6aLOXyHwwS4rwAB9bx2RoVWhCVw1BMvgwX7DsoeXGn/exec";
     
     try {
       // Prepare recipients with names from leads
@@ -187,43 +198,41 @@ export function ComposeTab({ initialHtml, initialTemplateId, onHtmlUsed }: Compo
         if (dateObj > new Date()) scheduledForTime = dateObj.getTime();
       }
 
-      // Create an invisible form element
-      const form = document.createElement('form');
-      form.method = 'POST';
-      form.action = SCRIPT_URL;
-      form.target = 'ZapMailAuth'; // Names the window so we don't open multiple tabs
-
-      // Bundle all data into a single string to bypass URL length limits
-      const payload = { 
-        action: "create",
-        userId: user.uid, 
-        recipients: recipientsArray, 
-        sub: subject, 
-        msg: sanitizeHtml(composeType === "plain" ? content : htmlContent), 
+      const jobId = window.crypto.randomUUID ? window.crypto.randomUUID() : Date.now().toString();
+      const jobData = {
+        jobId: jobId,
+        total: recipientsArray.length,
+        sent: 0,
+        failed: 0,
+        opens: 0,
+        status: (scheduledForTime > Date.now()) ? "scheduled" : "pending",
+        recipients: recipientsArray,
+        subject: subject,
+        body: sanitizeHtml(composeType === "plain" ? content : htmlContent),
         isHtml: composeType === "custom",
         scheduledFor: scheduledForTime,
-        recurrence: recurrence
+        recurrence: recurrence,
+        fromAlias: "",
+        lastUpdated: Date.now(),
+        locked: false
       };
       
-      // Create a hidden input to hold our JSON string
-      const input = document.createElement('input');
-      input.type = 'hidden';
-      input.name = 'payload';
-      input.value = JSON.stringify(payload);
-      form.appendChild(input);
-
-      // Open the auth window first (important to prevent popup blockers)
-      window.open('', 'ZapMailAuth', 'width=500,height=550');
-      
-      // Add form to page, fire it, then delete it
-      document.body.appendChild(form);
-      form.submit();
-      document.body.removeChild(form);
+      await set(ref(db, `users/${user.uid}/outgoing_emails/${jobId}`), jobData);
 
       setIsBottomSheetOpen(false);
-      alert("Batch process initiated. Monitoring progress...");
+      alert("Job added directly to queue! The background worker will pick it up automatically.");
+      
+      // Clear fields
+      setEmails([]);
+      setInputValue("");
+      setSubject("");
+      setContent("");
+      setHtmlContent("");
+      setScheduledFor("");
+      setRecurrence("none");
+      setIsSending(false);
     } catch (error) {
-      console.error("Error launching batch:", error);
+      console.error("Error creating job:", error);
       alert("Failed to initiate email sending.");
       setIsSending(false);
     }
