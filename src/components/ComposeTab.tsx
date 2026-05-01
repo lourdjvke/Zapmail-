@@ -1,6 +1,6 @@
 import React, { useState, useRef, useEffect, useMemo } from "react";
 import { motion, AnimatePresence } from "motion/react";
-import { Upload, X, Send, Paperclip, Image as ImageIcon, Type, FileText, Users, ChevronDown, Eye, Layout, Edit3, Palette, Trash2, Link as LinkIcon, AlertTriangle, Check, Calendar, Repeat, Lock } from "lucide-react";
+import { Upload, X, Send, Paperclip, Image as ImageIcon, Type, FileText, Users, ChevronDown, Eye, Layout, Edit3, Palette, Trash2, Link as LinkIcon, AlertTriangle, Check, Calendar, Repeat, Lock, Shuffle } from "lucide-react";
 import { useFirebaseData, useGlobalFirebaseData, useAuth, BroadcastList, EmailTemplate, EmailJob, Draft, Lead } from "../lib/store";
 import { fetchEmailsFromRTDB } from "../services/rtdbService";
 import { sanitizeHtml } from "../lib/utils";
@@ -57,6 +57,7 @@ export function ComposeTab({ initialHtml, initialTemplateId, onHtmlUsed }: Compo
   const [isBottomSheetOpen, setIsBottomSheetOpen] = useState(false);
   const [scheduledFor, setScheduledFor] = useState<string>("");
   const [recurrence, setRecurrence] = useState("none");
+  const [sendingOrder, setSendingOrder] = useState<"sequential" | "random" | "reverse">("sequential");
   const { data: leads } = useFirebaseData<Lead[]>('leads', []);
   const { data: isConnected } = useFirebaseData<boolean>('connected', false);
 
@@ -187,10 +188,16 @@ export function ComposeTab({ initialHtml, initialTemplateId, onHtmlUsed }: Compo
     
     try {
       // Prepare recipients with names from leads
-      const recipientsArray = emails.map(email => ({
+      let recipientsArray = emails.map(email => ({
         name: leadMap.get(email.toLowerCase()) || "",
         email: email
       }));
+
+      if (sendingOrder === 'random') {
+        recipientsArray = [...recipientsArray].sort(() => Math.random() - 0.5);
+      } else if (sendingOrder === 'reverse') {
+        recipientsArray = [...recipientsArray].reverse();
+      }
 
       let scheduledForTime = 0;
       if (scheduledFor) {
@@ -912,6 +919,22 @@ export function ComposeTab({ initialHtml, initialTemplateId, onHtmlUsed }: Compo
                       <option value="daily">Daily</option>
                       <option value="weekly">Weekly</option>
                       <option value="monthly">Monthly</option>
+                    </select>
+                  </div>
+
+                  <div className={`flex items-center justify-between w-full p-3 rounded-[8px] border border-emerald-100/50 bg-transparent`}>
+                    <div className="flex items-center gap-3">
+                      <Shuffle className="w-4 h-4 text-emerald-700" />
+                      <label className={`text-[13px] font-semibold text-emerald-900`}>Sending Order</label>
+                    </div>
+                    <select 
+                      value={sendingOrder}
+                      onChange={(e) => setSendingOrder(e.target.value as any)}
+                      className="bg-transparent text-[11px] text-emerald-900 outline-none appearance-none font-medium cursor-pointer text-right"
+                    >
+                      <option value="sequential">Sequential</option>
+                      <option value="random">Random</option>
+                      <option value="reverse">Bottom-to-Top</option>
                     </select>
                   </div>
                 </div>
